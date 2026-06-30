@@ -75,25 +75,25 @@ export const generateEventHandlerCode = (node: ASTNode, eventConfig: EventConfig
   let body = "";
 
   eventConfig.actions.forEach((action) => {
-    body += `    // Action: ${action.type}\n`;
+    let actionCode = "";
     switch (action.type) {
       case "setState": {
         const path = action.params.path as string;
         const valueSource = (action.params.valueSource as string) || "event";
         if (valueSource === "event") {
-          body += `    updateState("${path}", e);\n`;
+          actionCode += `    updateState("${path}", e);\n`;
         } else if (valueSource === "state") {
           const sourcePath = action.params.sourceStatePath as string;
           const parts = (sourcePath || "").split(".");
           const safePath = "state." + parts.join("?.");
-          body += `    updateState("${path}", ${safePath});\n`;
+          actionCode += `    updateState("${path}", ${safePath});\n`;
         } else {
           // custom value
           let val = action.params.value;
           if (typeof val === "string") {
             try { val = JSON.parse(val as string); } catch { /* keep */ }
           }
-          body += `    updateState("${path}", ${JSON.stringify(val)});\n`;
+          actionCode += `    updateState("${path}", ${JSON.stringify(val)});\n`;
         }
         break;
       }
@@ -101,15 +101,15 @@ export const generateEventHandlerCode = (node: ASTNode, eventConfig: EventConfig
         const path = action.params.path as string;
         const parts = (path || "").split(".");
         const safePath = "state." + parts.join("?.");
-        body += `    updateState("${path}", !${safePath});\n`;
+        actionCode += `    updateState("${path}", !${safePath});\n`;
         break;
       }
       case "resetState": {
         const path = action.params.path as string;
         if (path) {
-          body += `    updateState("${path}", undefined); // Reset to default\n`;
+          actionCode += `    updateState("${path}", undefined); // Reset to default\n`;
         } else {
-          body += `    setState({}); // Full reset\n`;
+          actionCode += `    setState({}); // Full reset\n`;
         }
         break;
       }
@@ -121,78 +121,78 @@ export const generateEventHandlerCode = (node: ASTNode, eventConfig: EventConfig
         const responsePath = action.params.responsePath as string;
         const errorPath = action.params.errorPath as string;
 
-        body += `    try {\n`;
-        body += `      const res = await fetch("${url}", {\n`;
-        body += `        method: "${method}",\n`;
+        actionCode += `    try {\n`;
+        actionCode += `      const res = await fetch("${url}", {\n`;
+        actionCode += `        method: "${method}",\n`;
         if (headers) {
-          body += `        headers: ${typeof headers === "string" ? headers : JSON.stringify(headers)},\n`;
+          actionCode += `        headers: ${typeof headers === "string" ? headers : JSON.stringify(headers)},\n`;
         } else {
-          body += `        headers: { "Content-Type": "application/json" },\n`;
+          actionCode += `        headers: { "Content-Type": "application/json" },\n`;
         }
         if (reqBody && method !== "GET") {
-          body += `        body: ${typeof reqBody === "string" ? reqBody : `JSON.stringify(${JSON.stringify(reqBody)})`},\n`;
+          actionCode += `        body: ${typeof reqBody === "string" ? reqBody : `JSON.stringify(${JSON.stringify(reqBody)})`},\n`;
         }
-        body += `      });\n`;
-        body += `      const resData = await res.json();\n`;
+        actionCode += `      });\n`;
+        actionCode += `      const resData = await res.json();\n`;
         if (responsePath) {
-          body += `      updateState("${responsePath}", resData);\n`;
+          actionCode += `      updateState("${responsePath}", resData);\n`;
         }
         if (errorPath) {
-          body += `      updateState("${errorPath}", null);\n`;
+          actionCode += `      updateState("${errorPath}", null);\n`;
         }
-        body += `    } catch (err) {\n`;
+        actionCode += `    } catch (err) {\n`;
         if (errorPath) {
-          body += `      updateState("${errorPath}", err.message);\n`;
+          actionCode += `      updateState("${errorPath}", err.message);\n`;
         }
-        body += `      console.error("API Call error:", err);\n`;
-        body += `    }\n`;
+        actionCode += `      console.error("API Call error:", err);\n`;
+        actionCode += `    }\n`;
         break;
       }
       case "showToast": {
         const msg = (action.params.message as string) || "";
         const toastType = (action.params.toastType as string) || "info";
-        body += `    // showToast: "${toastType}"\n`;
-        body += `    alert(${JSON.stringify(msg)}); // Replace with toast library\n`;
+        actionCode += `    // showToast: "${toastType}"\n`;
+        actionCode += `    alert(${JSON.stringify(msg)}); // Replace with toast library\n`;
         break;
       }
       case "navigate": {
         const url = (action.params.url as string) || "";
         const target = (action.params.target as string) || "_self";
         if (target === "_blank") {
-          body += `    window.open(${JSON.stringify(url)}, "_blank");\n`;
+          actionCode += `    window.open(${JSON.stringify(url)}, "_blank");\n`;
         } else {
-          body += `    window.location.href = ${JSON.stringify(url)};\n`;
+          actionCode += `    window.location.href = ${JSON.stringify(url)};\n`;
         }
         break;
       }
       case "openModal": {
         const mId = action.params.componentId as string;
-        body += `    updateState("modal.${mId}.open", true);\n`;
+        actionCode += `    updateState("modal.${mId}.open", true);\n`;
         break;
       }
       case "closeModal": {
         const mId = action.params.componentId as string;
-        body += `    updateState("modal.${mId}.open", false);\n`;
+        actionCode += `    updateState("modal.${mId}.open", false);\n`;
         break;
       }
       case "hideComponent": {
         const cId = action.params.componentId as string;
-        body += `    updateState("visibility.${cId}", false);\n`;
+        actionCode += `    updateState("visibility.${cId}", false);\n`;
         break;
       }
       case "showComponent": {
         const cId = action.params.componentId as string;
-        body += `    updateState("visibility.${cId}", true);\n`;
+        actionCode += `    updateState("visibility.${cId}", true);\n`;
         break;
       }
       case "copyToClipboard": {
         const text = (action.params.text as string) || "";
-        body += `    navigator.clipboard.writeText(${JSON.stringify(text)});\n`;
+        actionCode += `    navigator.clipboard.writeText(${JSON.stringify(text)});\n`;
         break;
       }
       case "delay": {
         const ms = Number(action.params.duration) || 1000;
-        body += `    await new Promise(resolve => setTimeout(resolve, ${ms}));\n`;
+        actionCode += `    await new Promise(resolve => setTimeout(resolve, ${ms}));\n`;
         break;
       }
       case "runCondition": {
@@ -218,25 +218,54 @@ export const generateEventHandlerCode = (node: ASTNode, eventConfig: EventConfig
           default: condition = `!!${safePath}`;
         }
 
-        body += `    if (${condition}) {\n`;
+        actionCode += `    if (${condition}) {\n`;
         if (thenSetPath) {
           let val = thenSetValue;
           if (typeof val === "string") { try { val = JSON.parse(val as string); } catch { /* */ } }
-          body += `      updateState("${thenSetPath}", ${JSON.stringify(val)});\n`;
+          actionCode += `      updateState("${thenSetPath}", ${JSON.stringify(val)});\n`;
         }
-        body += `    } else {\n`;
+        actionCode += `    } else {\n`;
         if (elseSetPath) {
           let val = elseSetValue;
           if (typeof val === "string") { try { val = JSON.parse(val as string); } catch { /* */ } }
-          body += `      updateState("${elseSetPath}", ${JSON.stringify(val)});\n`;
+          actionCode += `      updateState("${elseSetPath}", ${JSON.stringify(val)});\n`;
         }
-        body += `    }\n`;
+        actionCode += `    }\n`;
         break;
       }
       default:
-        body += `    // Unsupported action type: ${action.type}\n`;
+        actionCode += `    // Unsupported action type: ${action.type}\n`;
     }
-    body += `\n`;
+
+    if (action.condition && action.condition.enabled) {
+      const condPath = action.condition.statePath || "";
+      const condParts = condPath.split(".");
+      const safeCondPath = "state." + condParts.join("?.");
+      const op = action.condition.operator || "truthy";
+      const compareValue = action.condition.compareValue;
+
+      let condExpr = "";
+      switch (op) {
+        case "truthy": condExpr = `!!${safeCondPath}`; break;
+        case "falsy": condExpr = `!${safeCondPath}`; break;
+        case "equals": condExpr = `${safeCondPath} === ${JSON.stringify(compareValue)}`; break;
+        case "notEquals": condExpr = `${safeCondPath} !== ${JSON.stringify(compareValue)}`; break;
+        case "gt": condExpr = `Number(${safeCondPath}) > ${Number(compareValue)}`; break;
+        case "lt": condExpr = `Number(${safeCondPath}) < ${Number(compareValue)}`; break;
+        default: condExpr = `!!${safeCondPath}`;
+      }
+
+      // Indent original code inside conditional block
+      const indentedCode = actionCode
+        .split("\n")
+        .filter((line) => line.trim().length > 0)
+        .map((line) => "  " + line)
+        .join("\n");
+
+      actionCode = `    if (${condExpr}) {\n${indentedCode}\n    }\n`;
+    }
+
+    body += `    // Action: ${action.type}\n` + actionCode + `\n`;
   });
 
   return `  const ${handlerName} = async (e: any) => {\n${body}  };`;

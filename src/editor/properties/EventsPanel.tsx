@@ -12,15 +12,147 @@ import {
   ChevronUp, 
   ChevronDown, 
   Settings, 
-  Play, 
   Activity,
   Layers
 } from "lucide-react";
-import { Button, Tooltip, Empty } from "antd";
+import { Tooltip, Empty } from "antd";
+
+// Dnd Kit Imports
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface EventsPanelProps {
   node: ASTNode;
 }
+
+// Sub-component for individual sortable action items
+interface SortableActionItemProps {
+  action: EventActionConfig;
+  idx: number;
+  eventName: string;
+  onEdit: () => void;
+  onDelete: () => void;
+  onMove: (direction: "up" | "down") => void;
+  isFirst: boolean;
+  isLast: boolean;
+}
+
+const SortableActionItem: React.FC<SortableActionItemProps> = ({
+  action,
+  idx,
+  eventName,
+  onEdit,
+  onDelete,
+  onMove,
+  isFirst,
+  isLast,
+}) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: action.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 9999 : "auto",
+  };
+
+  const handler = getActionHandler(action.type);
+
+  // Render a human-friendly display description of the action with condition if enabled
+  const renderActionSummary = () => {
+    let summary = handler?.label || action.type;
+    const cond = action.condition;
+    
+    if (cond && cond.enabled) {
+      summary = `[If ${cond.statePath.split(".").pop()} ${cond.operator}] ${summary}`;
+    }
+    return summary;
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center justify-between bg-gray-950/80 px-2.5 py-1.5 rounded border ${
+        isDragging ? "border-blue-500 shadow-lg shadow-blue-500/20" : "border-gray-850"
+      } text-xs text-gray-300 group hover:border-gray-700/60 transition-all select-none`}
+    >
+      <div className="flex items-center space-x-2 overflow-hidden mr-2">
+        {/* Drag handle */}
+        <div
+          {...attributes}
+          {...listeners}
+          className="cursor-grab text-gray-600 hover:text-gray-400 p-0.5 shrink-0"
+        >
+          ⋮⋮
+        </div>
+        <span className="text-[10px] font-mono text-gray-500 bg-gray-900 px-1 py-0.5 rounded border border-gray-850">
+          {idx + 1}
+        </span>
+        <span className="text-xs font-medium text-gray-200 truncate" title={renderActionSummary()}>
+          {renderActionSummary()}
+        </span>
+      </div>
+
+      <div className="flex items-center space-x-1 shrink-0">
+        <button
+          disabled={isFirst}
+          onClick={(e) => { e.stopPropagation(); onMove("up"); }}
+          className={`p-1 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-all ${
+            isFirst ? "opacity-30 cursor-not-allowed" : ""
+          }`}
+        >
+          <ChevronUp size={12} />
+        </button>
+        <button
+          disabled={isLast}
+          onClick={(e) => { e.stopPropagation(); onMove("down"); }}
+          className={`p-1 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-all ${
+            isLast ? "opacity-30 cursor-not-allowed" : ""
+          }`}
+        >
+          <ChevronDown size={12} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onEdit(); }}
+          className="p-1 rounded text-gray-500 hover:text-blue-400 hover:bg-gray-800 transition-all"
+          title="Edit parameters"
+        >
+          <Settings size={12} />
+        </button>
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+          className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-gray-800 transition-all"
+          title="Delete step"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+    </div>
+  );
+};
 
 export const EventsPanel: React.FC<EventsPanelProps> = ({ node }) => {
   const { pages, activePageId, executeCommand } = useEditorStore();
@@ -32,6 +164,17 @@ export const EventsPanel: React.FC<EventsPanelProps> = ({ node }) => {
   const [editingAction, setEditingAction] = useState<EventActionConfig | undefined>(undefined);
   const [configuratorVisible, setConfiguratorVisible] = useState(false);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
   if (supportedEvents.length === 0) {
     return (
       <div className="p-6 text-center text-gray-500">
@@ -41,7 +184,6 @@ export const EventsPanel: React.FC<EventsPanelProps> = ({ node }) => {
     );
   }
 
-  // Deep clone pages utility
   const clonePages = () => JSON.parse(JSON.stringify(pages));
 
   const updateNodeEvents = (newEvents: EventConfig[]) => {
@@ -82,12 +224,10 @@ export const EventsPanel: React.FC<EventsPanelProps> = ({ node }) => {
     }
 
     if (editingAction) {
-      // Edit existing action
       eventConfig.actions = eventConfig.actions.map((act) =>
         act.id === actionConfig.id ? actionConfig : act
       );
     } else {
-      // Add new action
       eventConfig.actions.push(actionConfig);
     }
 
@@ -132,6 +272,30 @@ export const EventsPanel: React.FC<EventsPanelProps> = ({ node }) => {
     updateNodeEvents(currentEvents);
   };
 
+  const handleDragEnd = (eventName: string, event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    if (!node.events) return;
+
+    const eventConfig = node.events.find((e) => e.event === eventName);
+    if (!eventConfig) return;
+
+    const oldIndex = eventConfig.actions.findIndex((act) => act.id === active.id);
+    const newIndex = eventConfig.actions.findIndex((act) => act.id === over.id);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const nextActions = arrayMove(eventConfig.actions, oldIndex, newIndex);
+      const currentEvents = node.events.map((evt) => {
+        if (evt.event === eventName) {
+          return { ...evt, actions: nextActions };
+        }
+        return evt;
+      });
+      updateNodeEvents(currentEvents);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="p-4 border-b border-gray-800 flex items-center justify-between">
@@ -168,67 +332,39 @@ export const EventsPanel: React.FC<EventsPanelProps> = ({ node }) => {
                 </button>
               </div>
 
-              {/* Event Actions List */}
+              {/* Event Actions List with Drag and Drop */}
               <div className="p-2 space-y-1.5">
                 {actions.length === 0 ? (
                   <div className="p-4 text-center text-gray-600 text-[10px]">
                     No actions configured. Click "+ Action" to add step.
                   </div>
                 ) : (
-                  actions.map((action, idx) => {
-                    const handler = getActionHandler(action.type);
-                    return (
-                      <div
-                        key={action.id}
-                        className="flex items-center justify-between bg-gray-950/80 px-2.5 py-1.5 rounded border border-gray-850 text-xs text-gray-300"
-                      >
-                        <div className="flex items-center space-x-2 overflow-hidden mr-2">
-                          <span className="text-[10px] font-mono text-gray-600 bg-gray-900 px-1 py-0.5 rounded border border-gray-850">
-                            {idx + 1}
-                          </span>
-                          <span className="text-xs font-medium text-gray-300 truncate">
-                            {handler?.label || action.type}
-                          </span>
-                        </div>
-
-                        {/* Action Operations */}
-                        <div className="flex items-center space-x-1 shrink-0">
-                          <button
-                            disabled={idx === 0}
-                            onClick={() => handleMoveAction(eventName, idx, "up")}
-                            className={`p-1 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-all ${
-                              idx === 0 ? "opacity-30 cursor-not-allowed" : ""
-                            }`}
-                          >
-                            <ChevronUp size={12} />
-                          </button>
-                          <button
-                            disabled={idx === actions.length - 1}
-                            onClick={() => handleMoveAction(eventName, idx, "down")}
-                            className={`p-1 rounded text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-all ${
-                              idx === actions.length - 1 ? "opacity-30 cursor-not-allowed" : ""
-                            }`}
-                          >
-                            <ChevronDown size={12} />
-                          </button>
-                          <button
-                            onClick={() => handleEditActionClick(eventName, action)}
-                            className="p-1 rounded text-gray-500 hover:text-blue-400 hover:bg-gray-800 transition-all"
-                            title="Edit parameters"
-                          >
-                            <Settings size={12} />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteAction(eventName, action.id)}
-                            className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-gray-800 transition-all"
-                            title="Delete step"
-                          >
-                            <Trash2 size={12} />
-                          </button>
-                        </div>
+                  <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(event) => handleDragEnd(eventName, event)}
+                  >
+                    <SortableContext
+                      items={actions.map((a) => a.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      <div className="space-y-1.5">
+                        {actions.map((action, idx) => (
+                          <SortableActionItem
+                            key={action.id}
+                            action={action}
+                            idx={idx}
+                            eventName={eventName}
+                            onEdit={() => handleEditActionClick(eventName, action)}
+                            onDelete={() => handleDeleteAction(eventName, action.id)}
+                            onMove={(dir) => handleMoveAction(eventName, idx, dir)}
+                            isFirst={idx === 0}
+                            isLast={idx === actions.length - 1}
+                          />
+                        ))}
                       </div>
-                    );
-                  })
+                    </SortableContext>
+                  </DndContext>
                 )}
               </div>
             </div>

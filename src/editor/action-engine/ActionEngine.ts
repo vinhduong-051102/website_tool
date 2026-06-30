@@ -75,6 +75,47 @@ export const executeActions = async (
       continue;
     }
 
+    // Evaluate condition if enabled
+    if (action.condition && action.condition.enabled) {
+      const stateValue = context.getState(action.condition.statePath);
+      const operator = action.condition.operator || "truthy";
+      let compareValue: unknown = action.condition.compareValue;
+
+      if (typeof compareValue === "string") {
+        try {
+          compareValue = JSON.parse(compareValue);
+        } catch {
+          // Keep as string
+        }
+      }
+
+      let conditionMet = false;
+      switch (operator) {
+        case "truthy":
+          conditionMet = !!stateValue;
+          break;
+        case "falsy":
+          conditionMet = !stateValue;
+          break;
+        case "equals":
+          conditionMet = stateValue === compareValue;
+          break;
+        case "notEquals":
+          conditionMet = stateValue !== compareValue;
+          break;
+        case "gt":
+          conditionMet = Number(stateValue) > Number(compareValue);
+          break;
+        case "lt":
+          conditionMet = Number(stateValue) < Number(compareValue);
+          break;
+      }
+
+      if (!conditionMet) {
+        continue;
+      }
+    }
+
     try {
       const resolvedParams = resolveValue(action.params, context) as Record<string, unknown>;
       await handler.execute(resolvedParams, context);

@@ -15,6 +15,12 @@ export interface EventActionConfig {
   id: string;                          // Unique action instance ID
   type: string;                        // Action type key (e.g. "setState", "callApi")
   params: Record<string, unknown>;     // Action-specific parameters
+  condition?: {
+    enabled: boolean;
+    statePath: string;
+    operator: "truthy" | "falsy" | "equals" | "notEquals" | "gt" | "lt";
+    compareValue?: string;
+  };
 }
 
 /** Event configuration stored on each AST node */

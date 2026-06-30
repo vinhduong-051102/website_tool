@@ -2,16 +2,16 @@ import React, { useState } from "react";
 import { useEditorStore, createASTCommand } from "../store/useEditorStore";
 import { getComponent } from "../components/registry";
 import { findNodeById } from "../utils/ast";
-import { ASTNode, BindingConfig } from "../types";
+import { ASTNode, BindingConfig, StateVariable } from "../types";
 import {
   Link2,
   Plus,
   Trash2,
-  ChevronRight,
-  Database,
-  ArrowRight
+  ArrowRight,
+  Database
 } from "lucide-react";
-import { Select, Input, Button, Modal, Form, message } from "antd";
+import { Select, Button, Modal, Form, message, TreeSelect, Input } from "antd";
+import { buildStateTree, isStateCompatible, StateTreeItem } from "../utils/state";
 
 interface BindingsPanelProps {
   node: ASTNode;
@@ -27,8 +27,19 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
   const bindableProps = propertySchema.filter((p) => p.target === "props");
 
   const [modalVisible, setModalVisible] = useState(false);
+  const [stateCreatorVisible, setStateCreatorVisible] = useState(false);
   const [editingBinding, setEditingBinding] = useState<BindingConfig | null>(null);
+  
   const [form] = Form.useForm();
+  const [stateForm] = Form.useForm();
+
+  // Watch the selected property key to dynamically check type compatibility
+  const selectedPropKey = Form.useWatch("prop", form);
+  const selectedProp = bindableProps.find((p) => p.key === selectedPropKey);
+  const selectedPropType = selectedProp?.type || "text";
+
+  const activePage = pages.find((p) => p.id === activePageId);
+  const stateSchema = activePage?.stateSchema || [];
 
   if (bindableProps.length === 0) {
     return (
@@ -43,10 +54,10 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
 
   const updateNodeBindings = (newBindings: BindingConfig[]) => {
     const nextPages = clonePages();
-    const activePage = nextPages.find((p: any) => p.id === activePageId);
-    if (!activePage) return;
+    const activePageNode = nextPages.find((p: any) => p.id === activePageId);
+    if (!activePageNode) return;
 
-    const targetNode = findNodeById(activePage.ast, node.id);
+    const targetNode = findNodeById(activePageNode.ast, node.id);
     if (targetNode) {
       targetNode.bindings = newBindings;
       executeCommand(
@@ -74,13 +85,11 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
         const currentBindings = node.bindings ? [...node.bindings] : [];
 
         if (editingBinding) {
-          // Update existing
           const index = currentBindings.findIndex((b) => b.prop === editingBinding.prop);
           if (index !== -1) {
             currentBindings[index] = values as BindingConfig;
           }
         } else {
-          // Add new (verify no duplicates for the same prop)
           const exists = currentBindings.some((b) => b.prop === values.prop);
           if (exists) {
             message.warning(`Property "${values.prop}" is already bound.`);
@@ -104,6 +113,101 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
     updateNodeBindings(nextBindings);
     message.success("Binding deleted.");
   };
+
+  // State Creator Handler
+  const handleSaveStateVariable = () => {
+    stateForm
+      .validateFields()
+      .then((values) => {
+        let defaultValue: unknown = values.defaultValue;
+        if (values.type === "boolean") {
+          defaultValue = values.defaultValue === "true" || values.defaultValue === true;
+        } else if (values.type === "number") {
+          defaultValue = Number(values.defaultValue);
+        } else if (values.type === "object" || values.type === "array") {
+          try {
+            defaultValue = JSON.parse(values.defaultValue);
+          } catch {
+            message.error("Default value must be valid JSON for Object/Array types.");
+            return;
+          }
+        }
+
+        const newVariable: StateVariable = {
+          key: values.key,
+          type: values.type,
+          defaultValue,
+        };
+
+        const nextPages = clonePages();
+        const page = nextPages.find((p: any) => p.id === activePageId);
+        if (page) {
+          if (!page.stateSchema) page.stateSchema = [];
+          if (page.stateSchema.some((v: any) => v.key === newVariable.key)) {
+            message.warning(`State variable "${newVariable.key}" already exists.`);
+            return;
+          }
+          page.stateSchema.push(newVariable);
+          executeCommand(createASTCommand("Create Global State Variable", nextPages));
+          message.success(`State variable "${newVariable.key}" created.`);
+          
+          // Pre-fill the expression in binding form
+          form.setFieldsValue({ expression: newVariable.key });
+          
+          stateForm.resetFields();
+          setStateCreatorVisible(false);
+        }
+      })
+      .catch((err) => {
+        console.warn("State Variable validation error:", err);
+      });
+  };
+
+  // Helper to map tree items to AntD TreeSelect nodes
+  const mapTreeToSelectNodes = (
+    items: StateTreeItem[],
+    expectedPropKey: string,
+    expectedPropType: string
+  ): any[] => {
+    return items.map((item) => {
+      const isCompatible = isStateCompatible(expectedPropKey, expectedPropType, item.type);
+      const isFolder = item.type === "object" && item.children && item.children.length > 0;
+      
+      let typeIcon = "📂";
+      if (item.type === "string") typeIcon = "🔤";
+      else if (item.type === "number") typeIcon = "🔢";
+      else if (item.type === "boolean") typeIcon = "☑️";
+      else if (item.type === "array") typeIcon = "📊";
+
+      const labelElement = (
+        <span className="flex items-center justify-between w-full pr-4 text-xs">
+          <span>
+            <span className="mr-1.5">{typeIcon}</span>
+            <span className={!isCompatible && !isFolder ? "text-gray-400 dark:text-gray-600 line-through" : "text-gray-800 dark:text-gray-200"}>
+              {item.title}
+            </span>
+          </span>
+          <span className="text-[10px] bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 px-1 py-0.5 rounded ml-2 font-mono">
+            {item.type}
+          </span>
+        </span>
+      );
+
+      return {
+        title: labelElement,
+        value: item.value,
+        key: item.key,
+        selectable: isFolder ? false : isCompatible,
+        disabled: isFolder ? false : !isCompatible,
+        children: item.children
+          ? mapTreeToSelectNodes(item.children, expectedPropKey, expectedPropType)
+          : undefined,
+      };
+    });
+  };
+
+  const stateTree = buildStateTree(stateSchema);
+  const selectNodes = selectedPropKey ? mapTreeToSelectNodes(stateTree, selectedPropKey, selectedPropType) : [];
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -160,7 +264,7 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-1shrink-0">
+                  <div className="flex items-center space-x-1 shrink-0">
                     <button
                       onClick={() => handleOpenEditModal(binding)}
                       className="p-1.5 rounded text-gray-500 hover:text-blue-400 hover:bg-gray-800 transition-all text-xs font-medium"
@@ -207,13 +311,42 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
             />
           </Form.Item>
 
-          <Form.Item
-            name="expression"
-            label="Global State Path"
-            rules={[{ required: true, message: "Please enter a state path" }]}
-          >
-            <Input placeholder="e.g. form.login.email or currentUser.name" addonBefore="state." />
-          </Form.Item>
+          {selectedPropKey && (
+            <div className="mb-4">
+              <Form.Item
+                name="expression"
+                label={
+                  <div className="flex items-center justify-between w-full">
+                    <span>Global State Path (Must match attribute type)</span>
+                  </div>
+                }
+                rules={[{ required: true, message: "Please select a state path" }]}
+                className="mb-1"
+              >
+                <TreeSelect
+                  style={{ width: "100%" }}
+                  dropdownStyle={{ maxHeight: 350, overflow: "auto" }}
+                  placeholder="Select state variable..."
+                  treeData={selectNodes}
+                  treeDefaultExpandAll
+                  showSearch
+                  allowClear
+                  treeNodeFilterProp="title"
+                />
+              </Form.Item>
+              <div className="flex justify-end mt-1">
+                <Button
+                  type="link"
+                  size="small"
+                  onClick={() => setStateCreatorVisible(true)}
+                  className="p-0 text-xs flex items-center space-x-1"
+                >
+                  <Plus size={12} />
+                  <span>Create New State Variable</span>
+                </Button>
+              </div>
+            </div>
+          )}
 
           <Form.Item
             name="transform"
@@ -230,6 +363,54 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
                 { label: "Serialize as JSON String (JSON.stringify(value))", value: "JSON" },
               ]}
             />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Inline Create State Variable Modal */}
+      <Modal
+        title="Create New State Variable"
+        open={stateCreatorVisible}
+        onCancel={() => setStateCreatorVisible(false)}
+        onOk={handleSaveStateVariable}
+        okText="Create Variable"
+        cancelText="Cancel"
+        destroyOnHidden
+      >
+        <Form form={stateForm} layout="vertical" className="pt-4">
+          <Form.Item
+            name="key"
+            label="State Key (e.g. form.login.email)"
+            rules={[
+              { required: true, message: "Please enter a state key" },
+              { pattern: /^[a-zA-Z0-9_.]*$/, message: "Key can only contain alphanumeric characters, underscores, and dots" }
+            ]}
+          >
+            <Input placeholder="form.login.email" />
+          </Form.Item>
+
+          <Form.Item
+            name="type"
+            label="Data Type"
+            rules={[{ required: true, message: "Please select a data type" }]}
+          >
+            <Select
+              options={[
+                { label: "String (Text)", value: "string" },
+                { label: "Number (Integer/Decimal)", value: "number" },
+                { label: "Boolean (True/False)", value: "boolean" },
+                { label: "Object (JSON Object)", value: "object" },
+                { label: "Array (List)", value: "array" },
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="defaultValue"
+            label="Default Value"
+            tooltip="Provide starting value (e.g., 'hello', 42, true, or valid JSON for Objects/Arrays)"
+          >
+            <Input placeholder="Leave empty for undefined" />
           </Form.Item>
         </Form>
       </Modal>

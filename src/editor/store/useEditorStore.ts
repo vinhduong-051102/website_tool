@@ -36,6 +36,7 @@ interface EditorState {
   hoveredNodeId: string | null;
   clipboard: ASTNode[] | null;
   activeBreakpoint: Breakpoint;
+  apis: { name: string; url: string; method: string; headers?: string; body?: string }[];
   
   // Canvas settings
   zoom: number;
@@ -63,6 +64,7 @@ interface EditorActions {
   setSnapToGrid: (snap: boolean) => void;
   setIsPreviewMode: (isPreview: boolean) => void;
   resetProject: () => void;
+  addApi: (api: { name: string; url: string; method: string; headers?: string; body?: string }) => void;
 
   // Command History Actions
   executeCommand: (command: Command) => void;
@@ -94,6 +96,12 @@ export const useEditorStore = create<EditorStore>()(
       hoveredNodeId: null,
       clipboard: null,
       activeBreakpoint: "desktop",
+      apis: [
+        { name: "Login", url: "https://api.example.com/auth/login", method: "POST", body: '{"email": "{{state.form.login.email}}", "password": "{{state.form.login.password}}"}' },
+        { name: "Get Products", url: "https://api.example.com/products", method: "GET" },
+        { name: "Upload Image", url: "https://api.example.com/upload", method: "POST" },
+        { name: "Create User", url: "https://api.example.com/users", method: "POST" },
+      ],
       zoom: 1,
       pan: { x: 0, y: 0 },
       showGrid: true,
@@ -141,9 +149,21 @@ export const useEditorStore = create<EditorStore>()(
           hoveredNodeId: null,
           clipboard: null,
           isPreviewMode: false,
+          apis: [
+            { name: "Login", url: "https://api.example.com/auth/login", method: "POST", body: '{"email": "{{state.form.login.email}}", "password": "{{state.form.login.password}}"}' },
+            { name: "Get Products", url: "https://api.example.com/products", method: "GET" },
+            { name: "Upload Image", url: "https://api.example.com/upload", method: "POST" },
+            { name: "Create User", url: "https://api.example.com/users", method: "POST" },
+          ],
           history: [],
           historyIndex: -1,
         });
+      },
+
+      addApi: (api) => {
+        set((state) => ({
+          apis: [...(state.apis || []), api]
+        }));
       },
 
       // History commands
@@ -199,6 +219,7 @@ export const useEditorStore = create<EditorStore>()(
         pan: state.pan,
         showGrid: state.showGrid,
         snapToGrid: state.snapToGrid,
+        apis: state.apis || [],
       }),
     }
   )
