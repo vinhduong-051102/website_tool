@@ -131,7 +131,7 @@ export const ComponentTree: React.FC = () => {
       }
     }
 
-    const canAcceptChildren = ["Container", "Row", "Column"].includes(node.type);
+    const canAcceptChildren = ["Container", "Row", "Column", "Flex"].includes(node.type);
     const rect = e.currentTarget.getBoundingClientRect();
     const relativeY = e.clientY - rect.top;
     

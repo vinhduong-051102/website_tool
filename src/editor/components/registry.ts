@@ -7,6 +7,7 @@ import { ParagraphComponent } from "./Paragraph";
 import { ImageComponent } from "./Image";
 import { RowComponent } from "./Row";
 import { ColumnComponent } from "./Column";
+import { FlexComponent } from "./Flex";
 
 // Form Components Imports
 import { TextInputComponent } from "./TextInput";
@@ -46,6 +47,7 @@ export const componentRegistry: Record<string, BuilderComponent> = {
   Image: ImageComponent,
   Row: RowComponent,
   Column: ColumnComponent,
+  Flex: FlexComponent,
 
   // Registered Form Components
   TextInput: TextInputComponent,

@@ -129,7 +129,7 @@ export const EditorLayout: React.FC = () => {
       
       if (selectedNode) {
         const def = getComponent(selectedNode.type);
-        if (def?.validator?.canAcceptChild && ["Container", "Row", "Column"].includes(selectedNode.type)) {
+        if (def?.validator?.canAcceptChild && ["Container", "Row", "Column", "Flex"].includes(selectedNode.type)) {
           targetParentId = selectedId;
         } else {
           const parentInfo = findParentAndIndex(activePage.ast, selectedId);
@@ -266,7 +266,7 @@ export const EditorLayout: React.FC = () => {
     const targetNode = findNodeById(activePage.ast, targetId);
     if (!targetNode) return;
 
-    const isLeafTarget = !["Container", "Row", "Column"].includes(targetNode.type);
+    const isLeafTarget = !["Container", "Row", "Column", "Flex"].includes(targetNode.type);
     const targetParentInfo = findParentAndIndex(activePage.ast, targetId);
 
     if (isLeafTarget && targetParentInfo) {
@@ -317,7 +317,7 @@ export const EditorLayout: React.FC = () => {
           tablet: {},
           mobile: {},
         },
-        children: ["Container", "Row", "Column"].includes(componentType) ? [] : undefined,
+        children: ["Container", "Row", "Column", "Flex"].includes(componentType) ? [] : undefined,
       };
 
       const newRoot = insertNode(activePage.ast, finalParentId, newNode, targetIndex);
