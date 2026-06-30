@@ -46,6 +46,7 @@ export const SwitchComponent: BuilderComponent = {
       if (binding) {
         setState(binding.expression, checked);
       }
+      (node.props as any).triggerEvent?.("onChange", checked);
     };
 
     return (

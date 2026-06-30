@@ -54,10 +54,11 @@ export const TimePickerComponent: BuilderComponent = {
       setLocalValue(time);
       
       const binding = node.bindings?.find((b) => b.prop === "value");
+      const valStr = Array.isArray(timeString) ? timeString[0] : timeString;
       if (binding) {
-        const valStr = Array.isArray(timeString) ? timeString[0] : timeString;
         setState(binding.expression, valStr);
       }
+      (node.props as any).triggerEvent?.("onChange", valStr);
     };
 
     return (

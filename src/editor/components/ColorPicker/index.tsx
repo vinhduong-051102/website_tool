@@ -47,6 +47,7 @@ export const ColorPickerComponent: BuilderComponent = {
       if (binding) {
         setState(binding.expression, hex);
       }
+      (node.props as any).triggerEvent?.("onChange", hex);
     };
 
     return (

@@ -61,6 +61,7 @@ export const RangePickerComponent: BuilderComponent = {
       if (binding) {
         setState(binding.expression, dateStrings);
       }
+      (node.props as any).triggerEvent?.("onChange", dateStrings);
     };
 
     return (

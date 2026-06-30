@@ -69,6 +69,7 @@ export const AvatarUploadComponent: BuilderComponent = {
         if (binding) {
           setState(binding.expression, dummyUrl);
         }
+        (node.props as any).triggerEvent?.("onChange", dummyUrl);
       }, 500);
     };
 

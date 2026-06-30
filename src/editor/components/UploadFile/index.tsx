@@ -83,12 +83,11 @@ export const UploadFileComponent: BuilderComponent = {
       setFileList(updatedList);
 
       const binding = node.bindings?.find((b) => b.prop === "value");
+      const finalFiles = updatedList.map((f: any) => f.name);
       if (binding) {
-        setState(
-          binding.expression,
-          updatedList.map((f: any) => f.name)
-        );
+        setState(binding.expression, finalFiles);
       }
+      (node.props as any).triggerEvent?.("onChange", finalFiles);
     };
 
     const uploadProps = {

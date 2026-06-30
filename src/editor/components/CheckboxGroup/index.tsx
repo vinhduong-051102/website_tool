@@ -72,6 +72,7 @@ export const CheckboxGroupComponent: BuilderComponent = {
       if (binding) {
         setState(binding.expression, checkedValues);
       }
+      (node.props as any).triggerEvent?.("onChange", checkedValues);
     };
 
     return (

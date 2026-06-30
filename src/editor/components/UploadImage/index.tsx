@@ -76,12 +76,11 @@ export const UploadImageComponent: BuilderComponent = {
       setFileList(updatedList);
 
       const binding = node.bindings?.find((b) => b.prop === "value");
+      const finalImages = updatedList.map((f: any) => f.url || f.name);
       if (binding) {
-        setState(
-          binding.expression,
-          updatedList.map((f: any) => f.url || f.name)
-        );
+        setState(binding.expression, finalImages);
       }
+      (node.props as any).triggerEvent?.("onChange", finalImages);
     };
 
     const uploadProps = {

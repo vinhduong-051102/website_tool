@@ -54,10 +54,11 @@ export const DatePickerComponent: BuilderComponent = {
       setLocalValue(date);
       
       const binding = node.bindings?.find((b) => b.prop === "value");
+      const valStr = Array.isArray(dateString) ? dateString[0] : dateString;
       if (binding) {
-        const valStr = Array.isArray(dateString) ? dateString[0] : dateString;
         setState(binding.expression, valStr);
       }
+      (node.props as any).triggerEvent?.("onChange", valStr);
     };
 
     return (

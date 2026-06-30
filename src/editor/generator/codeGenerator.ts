@@ -53,13 +53,13 @@ export const generateReactCode = (node: ASTNode, indent: number = 0): string => 
   // Generate component code
   let code = componentDef.codeGenerator(node, childrenCode, tailwindClasses);
 
+  // Post-process to inject bindings and event handlers
+  code = postProcessNodeCode(node, code);
+
   // Wrap with Form Layout if it's a form component
   if (componentDef.metadata.category === "Form") {
     code = wrapWithFormLayout(node, code);
   }
-
-  // Post-process to inject bindings and event handlers
-  code = postProcessNodeCode(node, code);
 
   // Indent lines properly
   const spaces = " ".repeat(indent);

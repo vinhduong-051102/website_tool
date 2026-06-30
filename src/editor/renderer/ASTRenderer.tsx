@@ -30,6 +30,11 @@ export const ASTRenderer: React.FC<ASTRendererProps> = ({ node }) => {
   // Hook up event execution
   const { createRuntimeContext } = useRuntime();
 
+  const triggerEvent = React.useCallback((eventName: string, nativeEvent?: any) => {
+    const ctx = createRuntimeContext(node.id, eventName, nativeEvent);
+    handleComponentEvent(node, eventName, ctx);
+  }, [node, createRuntimeContext]);
+
   // Resolve runtime visibility from global state
   const isVisible = useGlobalState((state) => {
     const visibility = state.data.visibility as Record<string, boolean> | undefined;
@@ -50,12 +55,11 @@ export const ASTRenderer: React.FC<ASTRendererProps> = ({ node }) => {
             e.preventDefault();
           }
         }
-        const ctx = createRuntimeContext(node.id, eventName, e.nativeEvent);
-        handleComponentEvent(node, eventName, ctx);
+        triggerEvent(eventName, e.nativeEvent);
       };
     }
     return handlers;
-  }, [isPreviewMode, node, createRuntimeContext]);
+  }, [isPreviewMode, node, triggerEvent]);
 
   const componentDef = getComponent(node.type);
   if (!componentDef) {
@@ -100,7 +104,13 @@ export const ASTRenderer: React.FC<ASTRendererProps> = ({ node }) => {
 
   const componentElement = (
     <RendererComponent
-      node={{ ...node, props: resolvedProps }}
+      node={{
+        ...node,
+        props: {
+          ...resolvedProps,
+          triggerEvent: isPreviewMode ? triggerEvent : undefined,
+        }
+      }}
       isSelected={showSelected}
       isHovered={showHovered}
       isOver={showOver}

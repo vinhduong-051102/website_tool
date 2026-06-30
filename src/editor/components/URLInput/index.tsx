@@ -57,6 +57,7 @@ export const URLInputComponent: BuilderComponent = {
       if (binding) {
         setState(binding.expression, val);
       }
+      (node.props as any).triggerEvent?.("onChange", val);
     };
 
     return (

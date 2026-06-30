@@ -57,6 +57,7 @@ export const PhoneInputComponent: BuilderComponent = {
       if (binding) {
         setState(binding.expression, val);
       }
+      (node.props as any).triggerEvent?.("onChange", val);
     };
 
     return (
