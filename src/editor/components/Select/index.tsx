@@ -1,0 +1,114 @@
+import React, { useState, useEffect } from "react";
+import { Select } from "antd";
+import { BuilderComponent } from "../types";
+import { useGlobalState } from "../../state/useGlobalState";
+import { 
+  FormFieldWrapper, 
+  validateFormField, 
+  commonFormProperties, 
+  validationSchemaProperties 
+} from "../FormHelper";
+
+export const SelectComponent: BuilderComponent = {
+  metadata: {
+    type: "Select",
+    name: "Dropdown Select",
+    category: "Form",
+    icon: "SquareSplitHorizontal",
+  },
+  defaultProps: {
+    label: "Dropdown Select",
+    placeholder: "Select option...",
+    value: undefined,
+    required: false,
+    disabled: false,
+    hidden: false,
+    size: "middle",
+    allowClear: true,
+    showSearch: false,
+    helperText: "",
+    options: [
+      { label: "Option 1", value: "opt1" },
+      { label: "Option 2", value: "opt2" },
+    ],
+  },
+  defaultStyles: {},
+  propertySchema: [
+    ...commonFormProperties,
+    { key: "showSearch", name: "Searchable", type: "switch", target: "props", section: "Content" },
+    { key: "options", name: "Options (JSON)", type: "textarea", target: "props", section: "Content" },
+    ...validationSchemaProperties.filter(p => p.key === "customValidationMessage"),
+  ],
+  validator: {
+    canAcceptChild: () => false,
+    canBeDroppedIn: () => true,
+  },
+  supportedEvents: ["onChange", "onFocus", "onBlur"],
+  renderer: ({ node, isSelected, isHovered }) => {
+    const [localValue, setLocalValue] = useState<any>(node.props.value);
+    const setState = useGlobalState((state) => state.setState);
+
+    useEffect(() => {
+      setLocalValue(node.props.value);
+    }, [node.props.value]);
+
+    let parsedOptions = [];
+    try {
+      if (Array.isArray(node.props.options)) {
+        parsedOptions = node.props.options;
+      } else if (typeof node.props.options === "string") {
+        parsedOptions = JSON.parse(node.props.options);
+      }
+    } catch (e) {
+      parsedOptions = [
+        { label: "Option 1", value: "opt1" },
+        { label: "Option 2", value: "opt2" },
+      ];
+    }
+
+    const error = validateFormField(localValue, node.props);
+
+    const handleChange = (val: any) => {
+      setLocalValue(val);
+      
+      const binding = node.bindings?.find((b) => b.prop === "value");
+      if (binding) {
+        setState(binding.expression, val);
+      }
+    };
+
+    return (
+      <FormFieldWrapper node={node} isSelected={isSelected} isHovered={isHovered} error={error}>
+        <Select
+          value={localValue}
+          options={parsedOptions}
+          onChange={handleChange}
+          placeholder={String(node.props.placeholder ?? "")}
+          disabled={Boolean(node.props.disabled)}
+          size={(node.props.size as any) || "middle"}
+          allowClear={Boolean(node.props.allowClear)}
+          showSearch={Boolean(node.props.showSearch)}
+          status={error ? "error" : (node.props.status as any) || undefined}
+          style={{ width: "100%" }}
+        />
+      </FormFieldWrapper>
+    );
+  },
+  codeGenerator: (node, children, styles) => {
+    const disabled = node.props.disabled ? " disabled" : "";
+    const size = node.props.size ? ` size="${node.props.size}"` : "";
+    const placeholder = node.props.placeholder ? ` placeholder="${node.props.placeholder}"` : "";
+    const allowClear = node.props.allowClear ? " allowClear" : "";
+    const showSearch = node.props.showSearch ? " showSearch" : "";
+    
+    let optionsCode = "[]";
+    try {
+      const opts = typeof node.props.options === "string" ? JSON.parse(node.props.options) : node.props.options;
+      optionsCode = JSON.stringify(opts);
+    } catch (e) {}
+
+    return `<Select${size}${placeholder}${disabled}${allowClear}${showSearch} options={${optionsCode}} style={{ width: "100%" }} className="${styles || ""}" />`;
+  },
+};
+
+export default SelectComponent;

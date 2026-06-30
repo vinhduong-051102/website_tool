@@ -18,7 +18,25 @@ import {
   Radio, 
   List, 
   Layers,
-  SquareSplitHorizontal
+  SquareSplitHorizontal,
+  Lock,
+  Mail,
+  Hash,
+  Search,
+  Phone,
+  Link2,
+  ToggleLeft,
+  Calendar,
+  Clock,
+  CalendarRange,
+  CalendarDays,
+  UploadCloud,
+  ImagePlus,
+  UserCircle2,
+  Sliders,
+  Star,
+  Palette,
+  KeyRound
 } from "lucide-react";
 
 // Map string icon names to Lucide icon components
@@ -52,6 +70,42 @@ export const getIconComponent = (iconName: string) => {
       return <List size={20} />;
     case "SquareSplitHorizontal":
       return <SquareSplitHorizontal size={20} />;
+    case "Lock":
+      return <Lock size={20} />;
+    case "Mail":
+      return <Mail size={20} />;
+    case "Hash":
+      return <Hash size={20} />;
+    case "Search":
+      return <Search size={20} />;
+    case "Phone":
+      return <Phone size={20} />;
+    case "Link2":
+      return <Link2 size={20} />;
+    case "ToggleLeft":
+      return <ToggleLeft size={20} />;
+    case "Calendar":
+      return <Calendar size={20} />;
+    case "Clock":
+      return <Clock size={20} />;
+    case "CalendarRange":
+      return <CalendarRange size={20} />;
+    case "CalendarDays":
+      return <CalendarDays size={20} />;
+    case "UploadCloud":
+      return <UploadCloud size={20} />;
+    case "ImagePlus":
+      return <ImagePlus size={20} />;
+    case "UserCircle2":
+      return <UserCircle2 size={20} />;
+    case "Sliders":
+      return <Sliders size={20} />;
+    case "Star":
+      return <Star size={20} />;
+    case "Palette":
+      return <Palette size={20} />;
+    case "KeyRound":
+      return <KeyRound size={20} />;
     default:
       return <Layers size={20} />;
   }
