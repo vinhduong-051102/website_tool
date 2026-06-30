@@ -26,7 +26,7 @@ export const Renderer = ({
           : ""
       }`}
     >
-      {(node.props.text as string) || "Button"}
+      {node.props.text !== undefined && node.props.text !== null ? String(node.props.text) : "Button"}
     </button>
   );
 };

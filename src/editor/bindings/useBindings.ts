@@ -25,7 +25,8 @@ export const useBindings = (node: ASTNode): Record<string, unknown> => {
     if (!bindings || bindings.length === 0) return node.props;
 
     const getState = (path: string): unknown => {
-      const keys = path.split(".");
+      const cleanPath = path.startsWith("state.") ? path.substring(6) : path;
+      const keys = cleanPath.split(".");
       let current: unknown = data;
       for (const key of keys) {
         if (current === null || current === undefined) return undefined;

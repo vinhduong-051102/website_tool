@@ -26,7 +26,7 @@ export const Renderer = ({
           : ""
       }`}
     >
-      {(node.props.text as string) || "Paragraph copy goes here."}
+      {node.props.text !== undefined && node.props.text !== null ? String(node.props.text) : "Paragraph copy goes here."}
     </p>
   );
 };

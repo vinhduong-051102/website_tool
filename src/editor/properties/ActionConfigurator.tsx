@@ -18,6 +18,7 @@ export const ActionConfigurator: React.FC<ActionConfiguratorProps> = ({
 }) => {
   const [form] = Form.useForm();
   const [selectedType, setSelectedType] = useState<string | null>(null);
+  const watchedValueSource = Form.useWatch('valueSource', form);
 
   const actionHandlers = getAllActionHandlers();
 
@@ -112,6 +113,12 @@ export const ActionConfigurator: React.FC<ActionConfiguratorProps> = ({
               const rules = param.required
                 ? [{ required: true, message: `${param.label} is required` }]
                 : [];
+
+              // Conditional visibility for setState action
+              if (selectedType === 'setState') {
+                if (param.key === 'value' && watchedValueSource !== 'custom') return null;
+                if (param.key === 'sourceStatePath' && watchedValueSource !== 'state') return null;
+              }
 
               return (
                 <Form.Item

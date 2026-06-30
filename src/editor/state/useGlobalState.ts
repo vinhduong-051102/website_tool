@@ -48,6 +48,7 @@ interface GlobalStateStore {
   resetState: (path?: string) => void;
   getSnapshot: () => Record<string, unknown>;
   initializeFromSchema: (schema: StateVariable[]) => void;
+  updateSchemaPreserveData: (schema: StateVariable[]) => void;
 }
 
 /**
@@ -60,27 +61,31 @@ export const useGlobalState = create<GlobalStateStore>()((set, get) => ({
   defaults: {},
 
   getState: (path: string): unknown => {
-    return getByPath(get().data, path);
+    const cleanPath = path.startsWith("state.") ? path.substring(6) : path;
+    return getByPath(get().data, cleanPath);
   },
 
   setState: (path: string, value: unknown): void => {
+    const cleanPath = path.startsWith("state.") ? path.substring(6) : path;
     set((state) => ({
-      data: setByPath(state.data, path, value),
+      data: setByPath(state.data, cleanPath, value),
     }));
   },
 
   toggleState: (path: string): void => {
-    const current = getByPath(get().data, path);
+    const cleanPath = path.startsWith("state.") ? path.substring(6) : path;
+    const current = getByPath(get().data, cleanPath);
     set((state) => ({
-      data: setByPath(state.data, path, !current),
+      data: setByPath(state.data, cleanPath, !current),
     }));
   },
 
   resetState: (path?: string): void => {
     if (path) {
-      const defaultValue = getByPath(get().defaults, path);
+      const cleanPath = path.startsWith("state.") ? path.substring(6) : path;
+      const defaultValue = getByPath(get().defaults, cleanPath);
       set((state) => ({
-        data: setByPath(state.data, path, defaultValue),
+        data: setByPath(state.data, cleanPath, defaultValue),
       }));
     } else {
       set({ data: JSON.parse(JSON.stringify(get().defaults)) });
@@ -94,7 +99,8 @@ export const useGlobalState = create<GlobalStateStore>()((set, get) => ({
   initializeFromSchema: (schema: StateVariable[]): void => {
     const defaults: Record<string, unknown> = {};
     for (const variable of schema) {
-      const keys = variable.key.split(".");
+      const cleanKey = variable.key.startsWith("state.") ? variable.key.substring(6) : variable.key;
+      const keys = cleanKey.split(".");
       let current = defaults;
       for (let i = 0; i < keys.length - 1; i++) {
         if (!(keys[i] in current)) {
@@ -109,4 +115,49 @@ export const useGlobalState = create<GlobalStateStore>()((set, get) => ({
       defaults: JSON.parse(JSON.stringify(defaults)),
     });
   },
+
+  updateSchemaPreserveData: (schema: StateVariable[]): void => {
+    const defaults: Record<string, unknown> = {};
+    for (const variable of schema) {
+      const cleanKey = variable.key.startsWith("state.") ? variable.key.substring(6) : variable.key;
+      const keys = cleanKey.split(".");
+      let current = defaults;
+      for (let i = 0; i < keys.length - 1; i++) {
+        if (!(keys[i] in current)) {
+          current[keys[i]] = {};
+        }
+        current = current[keys[i]] as Record<string, unknown>;
+      }
+      current[keys[keys.length - 1]] = variable.defaultValue;
+    }
+
+    const mergedData = deepMerge(defaults, get().data);
+    set({
+      data: mergedData,
+      defaults: JSON.parse(JSON.stringify(defaults)),
+    });
+  },
 }));
+
+// Helper functions for merging schemas
+const isObject = (item: any): boolean => {
+  return item && typeof item === "object" && !Array.isArray(item);
+};
+
+const deepMerge = (target: any, source: any): any => {
+  const output = { ...target };
+  if (isObject(target) && isObject(source)) {
+    Object.keys(source).forEach((key) => {
+      if (isObject(source[key])) {
+        if (!(key in target)) {
+          output[key] = source[key];
+        } else {
+          output[key] = deepMerge(target[key], source[key]);
+        }
+      } else {
+        output[key] = source[key];
+      }
+    });
+  }
+  return output;
+};

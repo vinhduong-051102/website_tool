@@ -28,7 +28,7 @@ export const Renderer = ({
           : ""
       }`,
     },
-    (node.props.text as string) || "Heading Title"
+    node.props.text !== undefined && node.props.text !== null ? String(node.props.text) : "Heading Title"
   );
 };
 export default Renderer;
