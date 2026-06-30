@@ -14,6 +14,7 @@ export const RowComponent: BuilderComponent = {
     canAcceptChild: (childType) => childType === "Column", // Strict Row -> Column validation
     canBeDroppedIn: () => true,
   },
+  supportedEvents: ["onClick"],
   renderer: Renderer,
   codeGenerator,
 };

@@ -14,6 +14,7 @@ export const HeadingComponent: BuilderComponent = {
     canAcceptChild: () => false, // Heading does not accept children
     canBeDroppedIn: () => true,
   },
+  supportedEvents: ["onClick"],
   renderer: Renderer,
   codeGenerator,
 };

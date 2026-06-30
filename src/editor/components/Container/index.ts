@@ -14,6 +14,7 @@ export const ContainerComponent: BuilderComponent = {
     canAcceptChild: () => true, // Container accepts all components
     canBeDroppedIn: () => true,
   },
+  supportedEvents: ["onClick", "onScroll"],
   renderer: Renderer,
   codeGenerator,
 };

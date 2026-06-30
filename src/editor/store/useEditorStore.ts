@@ -42,6 +42,7 @@ interface EditorState {
   pan: { x: number; y: number };
   showGrid: boolean;
   snapToGrid: boolean;
+  isPreviewMode: boolean;
 
   // History stack (non-persistent)
   history: Command[];
@@ -60,6 +61,7 @@ interface EditorActions {
   setPan: (pan: { x: number; y: number } | ((prev: { x: number; y: number }) => { x: number; y: number })) => void;
   setShowGrid: (show: boolean) => void;
   setSnapToGrid: (snap: boolean) => void;
+  setIsPreviewMode: (isPreview: boolean) => void;
   resetProject: () => void;
 
   // Command History Actions
@@ -96,6 +98,7 @@ export const useEditorStore = create<EditorStore>()(
       pan: { x: 0, y: 0 },
       showGrid: true,
       snapToGrid: true,
+      isPreviewMode: false,
 
       history: [],
       historyIndex: -1,
@@ -121,6 +124,7 @@ export const useEditorStore = create<EditorStore>()(
       },
       setShowGrid: (show) => set({ showGrid: show }),
       setSnapToGrid: (snap) => set({ snapToGrid: snap }),
+      setIsPreviewMode: (isPreview) => set({ isPreviewMode: isPreview }),
 
       resetProject: () => {
         set({
@@ -136,6 +140,7 @@ export const useEditorStore = create<EditorStore>()(
           selectedNodeIds: [],
           hoveredNodeId: null,
           clipboard: null,
+          isPreviewMode: false,
           history: [],
           historyIndex: -1,
         });

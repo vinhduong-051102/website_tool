@@ -33,6 +33,7 @@ export interface BuilderComponent {
   defaultStyles: Record<string, unknown>; // Baseline styles
   propertySchema: PropertyConfig[];
   validator: ComponentValidator;
+  supportedEvents: string[];             // Events this component can handle (e.g. ["onClick", "onFocus"])
   renderer: React.ComponentType<{
     node: ASTNode;
     isSelected: boolean;

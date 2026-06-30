@@ -14,6 +14,7 @@ export const TextComponent: BuilderComponent = {
     canAcceptChild: () => false, // Text does not accept children
     canBeDroppedIn: () => true,
   },
+  supportedEvents: ["onClick"],
   renderer: Renderer,
   codeGenerator,
 };

@@ -14,6 +14,7 @@ export const ImageComponent: BuilderComponent = {
     canAcceptChild: () => false, // Image does not accept children
     canBeDroppedIn: () => true,
   },
+  supportedEvents: ["onClick", "onLoad", "onError"],
   renderer: Renderer,
   codeGenerator,
 };

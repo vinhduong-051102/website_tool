@@ -14,6 +14,7 @@ export const ParagraphComponent: BuilderComponent = {
     canAcceptChild: () => false, // Paragraph does not accept children
     canBeDroppedIn: () => true,
   },
+  supportedEvents: ["onClick"],
   renderer: Renderer,
   codeGenerator,
 };

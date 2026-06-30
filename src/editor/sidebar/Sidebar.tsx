@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import { componentRegistry } from "../components/registry";
+import { ComponentTree } from "./ComponentTree";
 import { 
   Box, 
   MousePointer, 
@@ -91,6 +92,8 @@ const DraggableItem: React.FC<DraggableItemProps> = ({ type, name, iconName }) =
 };
 
 export const Sidebar: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<"library" | "structure">("library");
+
   // Group registry components by category
   const components = Object.values(componentRegistry);
   
@@ -111,34 +114,62 @@ export const Sidebar: React.FC = () => {
 
   return (
     <div className="w-64 bg-[#1f2937]/95 border-r border-gray-800 flex flex-col h-full z-15 backdrop-blur">
-      <div className="p-4 border-b border-gray-800 flex items-center space-x-2 shrink-0">
-        <Layout className="text-blue-500" size={20} />
-        <h2 className="text-sm font-semibold text-white uppercase tracking-wider select-none">
-          Component Library
-        </h2>
+      {/* Sidebar Header Tabs */}
+      <div className="p-2 border-b border-gray-800 flex flex-col shrink-0 bg-gray-900/30">
+        <div className="flex bg-gray-950/60 p-1 rounded-lg border border-gray-850">
+          <button
+            onClick={() => setActiveTab("library")}
+            className={`flex-1 py-1.5 rounded-md text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
+              activeTab === "library"
+                ? "bg-blue-600/90 text-white shadow shadow-blue-500/10"
+                : "text-gray-400 hover:text-gray-200 hover:bg-gray-800/40"
+            }`}
+          >
+            <Box size={13} />
+            <span>Library</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("structure")}
+            className={`flex-1 py-1.5 rounded-md text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
+              activeTab === "structure"
+                ? "bg-blue-600/90 text-white shadow shadow-blue-500/10"
+                : "text-gray-400 hover:text-gray-200 hover:bg-gray-800/40"
+            }`}
+          >
+            <Layers size={13} />
+            <span>Structure</span>
+          </button>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
-        {Object.entries(categories).map(([category, items]) => {
-          if (items.length === 0) return null;
-          return (
-            <div key={category} className="space-y-3">
-              <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest select-none">
-                {category}
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                {items.map((item) => (
-                  <DraggableItem
-                    key={item.metadata.type}
-                    type={item.metadata.type}
-                    name={item.metadata.name}
-                    iconName={item.metadata.icon}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
+      {/* Tab Contents */}
+      <div className="flex-1 overflow-hidden">
+        {activeTab === "library" ? (
+          <div className="h-full overflow-y-auto p-4 space-y-6">
+            {Object.entries(categories).map(([category, items]) => {
+              if (items.length === 0) return null;
+              return (
+                <div key={category} className="space-y-3">
+                  <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest select-none">
+                    {category}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {items.map((item) => (
+                      <DraggableItem
+                        key={item.metadata.type}
+                        type={item.metadata.type}
+                        name={item.metadata.name}
+                        iconName={item.metadata.icon}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <ComponentTree />
+        )}
       </div>
     </div>
   );

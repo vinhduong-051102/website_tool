@@ -14,18 +14,22 @@ import {
   Sparkles,
   Trash2,
   Copy,
-  Clipboard
+  Clipboard,
+  Play,
+  Edit3
 } from "lucide-react";
 import { message, Modal } from "antd";
 import { generateFullPageCode } from "./generator/codeGenerator";
 import { ASTNode } from "./types";
 import { highlightJSX } from "./utils/highlighter";
+import { RuntimeProvider } from "./runtime/RuntimeProvider";
 
 export const EditorLayout: React.FC = () => {
   const {
     pages,
     activePageId,
     selectedNodeIds,
+    setSelectedNodeIds,
     clipboard,
     setClipboard,
     executeCommand,
@@ -34,6 +38,8 @@ export const EditorLayout: React.FC = () => {
     canUndo,
     canRedo,
     resetProject,
+    isPreviewMode,
+    setIsPreviewMode,
   } = useEditorStore();
 
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -235,10 +241,12 @@ export const EditorLayout: React.FC = () => {
   }, [pages, activePageId, selectedNodeIds, clipboard]);
 
   const handleDragStart = (event: DragStartEvent) => {
+    if (isPreviewMode) return;
     setActiveDragId(event.active.id as string);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
+    if (isPreviewMode) return;
     const { active, over } = event;
     setActiveDragId(null);
 
@@ -437,7 +445,7 @@ export const EditorLayout: React.FC = () => {
   const handleOpenExportModal = () => {
     const activePage = pages.find((p) => p.id === activePageId);
     if (!activePage) return;
-    const code = generateFullPageCode(activePage.ast, activePage.name.replace(/\s+/g, ""));
+    const code = generateFullPageCode(activePage.ast, activePage.name.replace(/\s+/g, ""), activePage.stateSchema);
     setGeneratedCode(code);
     setIsExportModalOpen(true);
   };
@@ -577,6 +585,36 @@ export const EditorLayout: React.FC = () => {
 
           {/* Right Actions */}
           <div className="flex items-center space-x-3">
+            {/* Play/Design Toggle */}
+            <div className="flex bg-gray-950 p-1 rounded-lg border border-gray-850 space-x-1 mr-2">
+              <button
+                onClick={() => setIsPreviewMode(false)}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+                  !isPreviewMode
+                    ? "bg-blue-600/90 text-white shadow-sm"
+                    : "text-gray-400 hover:text-gray-200 hover:bg-gray-900/40"
+                }`}
+                title="Design Mode"
+              >
+                <Edit3 size={12} />
+                <span>Design</span>
+              </button>
+              <button
+                onClick={() => {
+                  setSelectedNodeIds([]); // Clear selections in preview mode
+                  setIsPreviewMode(true);
+                }}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold flex items-center space-x-1.5 transition-all ${
+                  isPreviewMode
+                    ? "bg-green-600/90 text-white shadow-sm"
+                    : "text-gray-400 hover:text-gray-200 hover:bg-gray-900/40"
+                }`}
+                title="Preview Interactivity"
+              >
+                <Play size={12} />
+                <span>Preview</span>
+              </button>
+            </div>
             {/* Import JSON */}
             <label className="px-3 py-1.5 rounded-lg border border-gray-800 bg-gray-900/60 hover:bg-gray-850 hover:text-white font-medium text-xs text-gray-400 cursor-pointer transition-all">
               <span>Import JSON</span>
@@ -613,7 +651,9 @@ export const EditorLayout: React.FC = () => {
           <Sidebar />
 
           {/* Center Canvas */}
-          <Canvas />
+          <RuntimeProvider>
+            <Canvas />
+          </RuntimeProvider>
 
           {/* Right Sidebar */}
           <Properties />

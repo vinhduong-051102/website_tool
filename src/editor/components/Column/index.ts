@@ -14,6 +14,7 @@ export const ColumnComponent: BuilderComponent = {
     canAcceptChild: () => true,
     canBeDroppedIn: (parentType) => parentType === "Row", // Strictly enforces Column -> Row hierarchy
   },
+  supportedEvents: ["onClick"],
   renderer: Renderer,
   codeGenerator,
 };

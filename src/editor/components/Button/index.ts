@@ -14,6 +14,7 @@ export const ButtonComponent: BuilderComponent = {
     canAcceptChild: () => false, // Button does not accept children
     canBeDroppedIn: () => true,
   },
+  supportedEvents: ["onClick", "onFocus", "onBlur"],
   renderer: Renderer,
   codeGenerator,
 };
