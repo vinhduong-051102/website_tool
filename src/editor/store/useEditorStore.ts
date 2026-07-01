@@ -1,35 +1,12 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { ASTNode, Breakpoint, Page, Command } from "../types";
-
-// Create a default body container node for the Canvas
-export const createDefaultRootNode = (): ASTNode => ({
-  id: "root",
-  type: "Container",
-  props: {
-    name: "Body Container",
-  },
-  styles: {
-    desktop: {
-      minHeight: "100vh",
-      padding: "24px",
-      backgroundColor: "#1f2937", // bg-gray-800
-      color: "#ffffff",
-      display: "flex",
-      flexDirection: "column",
-      gap: "16px",
-    },
-    tablet: {
-      padding: "16px",
-    },
-    mobile: {
-      padding: "12px",
-    },
-  },
-  children: [],
-});
+import { ASTNode, Breakpoint, Page, Command, Project } from "../types";
+import { TEMPLATES } from "./templates";
+import { createDefaultRootNode } from "../utils/defaultRoot";
 
 interface EditorState {
+  projects: Project[];
+  activeProjectId: string;
   pages: Page[];
   activePageId: string;
   selectedNodeIds: string[];
@@ -37,6 +14,8 @@ interface EditorState {
   clipboard: ASTNode[] | null;
   activeBreakpoint: Breakpoint;
   apis: { name: string; url: string; method: string; headers?: string; body?: string }[];
+  env: Record<string, string>;
+  theme: Record<string, unknown>;
   
   // Canvas settings
   zoom: number;
@@ -51,6 +30,17 @@ interface EditorState {
 }
 
 interface EditorActions {
+  // Project Management Actions
+  createProject: (name: string, template: string) => void;
+  openProject: (id: string) => void;
+  renameProject: (id: string, name: string) => void;
+  duplicateProject: (id: string) => void;
+  deleteProject: (id: string) => void;
+  importProject: (projectJson: string) => void;
+  exportProject: (id: string) => void;
+  updateProjectEnv: (env: Record<string, string>) => void;
+  updateProjectTheme: (theme: Record<string, unknown>) => void;
+
   // State setters
   setPages: (pages: Page[] | ((prev: Page[]) => Page[])) => void;
   setActivePageId: (id: string) => void;
@@ -79,29 +69,49 @@ interface EditorActions {
 
 export type EditorStore = EditorState & EditorActions;
 
+// Default initial project setup
+const defaultProject: Project = {
+  id: "default",
+  name: "My Project",
+  template: "blank",
+  pages: [
+    {
+      id: "home",
+      name: "Home",
+      path: "/",
+      ast: createDefaultRootNode(),
+      stateSchema: [],
+    },
+  ],
+  apis: [
+    { name: "Login", url: "https://api.example.com/auth/login", method: "POST", body: '{"email": "{{state.form.login.email}}", "password": "{{state.form.login.password}}"}' },
+    { name: "Get Products", url: "https://api.example.com/products", method: "GET" },
+    { name: "Upload Image", url: "https://api.example.com/upload", method: "POST" },
+    { name: "Create User", url: "https://api.example.com/users", method: "POST" },
+  ],
+  env: {
+    NEXT_PUBLIC_API_URL: "https://api.example.com",
+  },
+  theme: {
+    primaryColor: "#2563eb",
+  },
+};
+
 export const useEditorStore = create<EditorStore>()(
   persist(
     (set, get) => ({
       // Initial States
-      pages: [
-        {
-          id: "home",
-          name: "Home",
-          path: "/",
-          ast: createDefaultRootNode(),
-        },
-      ],
+      projects: [defaultProject],
+      activeProjectId: "default",
+      pages: defaultProject.pages,
       activePageId: "home",
       selectedNodeIds: [],
       hoveredNodeId: null,
       clipboard: null,
       activeBreakpoint: "desktop",
-      apis: [
-        { name: "Login", url: "https://api.example.com/auth/login", method: "POST", body: '{"email": "{{state.form.login.email}}", "password": "{{state.form.login.password}}"}' },
-        { name: "Get Products", url: "https://api.example.com/products", method: "GET" },
-        { name: "Upload Image", url: "https://api.example.com/upload", method: "POST" },
-        { name: "Create User", url: "https://api.example.com/users", method: "POST" },
-      ],
+      apis: defaultProject.apis,
+      env: defaultProject.env || {},
+      theme: defaultProject.theme || {},
       zoom: 1,
       pan: { x: 0, y: 0 },
       showGrid: true,
@@ -110,6 +120,161 @@ export const useEditorStore = create<EditorStore>()(
 
       history: [],
       historyIndex: -1,
+
+      // Project Actions
+      createProject: (name, template) => {
+        const id = `project-${Math.random().toString(36).substr(2, 9)}`;
+        const templateData = TEMPLATES[template] || TEMPLATES.blank;
+        
+        // Deep copy pages & apis
+        const pages = JSON.parse(JSON.stringify(templateData.pages)) as Page[];
+        const apis = JSON.parse(JSON.stringify(templateData.apis));
+        const env = templateData.env || { NEXT_PUBLIC_API_URL: "https://api.example.com" };
+        const theme = { primaryColor: "#2563eb" };
+
+        const newProj: Project = {
+          id,
+          name,
+          template,
+          pages,
+          apis,
+          env,
+          theme,
+        };
+
+        set((state) => ({
+          projects: [...state.projects, newProj],
+          activeProjectId: id,
+          pages,
+          activePageId: pages[0]?.id || "home",
+          apis,
+          env,
+          theme,
+          selectedNodeIds: [],
+          hoveredNodeId: null,
+          history: [],
+          historyIndex: -1,
+        }));
+      },
+
+      openProject: (id) => {
+        const proj = get().projects.find((p) => p.id === id);
+        if (!proj) return;
+        set({
+          activeProjectId: id,
+          pages: proj.pages,
+          activePageId: proj.pages[0]?.id || "home",
+          apis: proj.apis,
+          env: proj.env || {},
+          theme: proj.theme || {},
+          selectedNodeIds: [],
+          hoveredNodeId: null,
+          history: [],
+          historyIndex: -1,
+        });
+      },
+
+      renameProject: (id, name) => {
+        set((state) => ({
+          projects: state.projects.map((p) => (p.id === id ? { ...p, name } : p)),
+        }));
+      },
+
+      duplicateProject: (id) => {
+        const proj = get().projects.find((p) => p.id === id);
+        if (!proj) return;
+
+        const newId = `project-${Math.random().toString(36).substr(2, 9)}`;
+        const duplicated: Project = JSON.parse(JSON.stringify(proj));
+        duplicated.id = newId;
+        duplicated.name = `${proj.name} (Copy)`;
+
+        set((state) => ({
+          projects: [...state.projects, duplicated],
+        }));
+      },
+
+      deleteProject: (id) => {
+        const { projects, activeProjectId } = get();
+        if (projects.length <= 1) {
+          alert("Cannot delete the only remaining project.");
+          return;
+        }
+
+        const nextProjects = projects.filter((p) => p.id !== id);
+        let nextActiveId = activeProjectId;
+        if (activeProjectId === id) {
+          nextActiveId = nextProjects[0].id;
+        }
+
+        set({
+          projects: nextProjects,
+        });
+
+        if (activeProjectId === id) {
+          get().openProject(nextActiveId);
+        }
+      },
+
+      importProject: (projectJson) => {
+        try {
+          const parsed = JSON.parse(projectJson) as Project;
+          if (!parsed.id || !parsed.name || !Array.isArray(parsed.pages)) {
+            throw new Error("Invalid project JSON structure");
+          }
+
+          // Ensure unique ID
+          parsed.id = `project-${Math.random().toString(36).substr(2, 9)}`;
+          parsed.name = `${parsed.name} (Imported)`;
+
+          set((state) => ({
+            projects: [...state.projects, parsed],
+            activeProjectId: parsed.id,
+            pages: parsed.pages,
+            activePageId: parsed.pages[0]?.id || "home",
+            apis: parsed.apis || [],
+            env: parsed.env || {},
+            theme: parsed.theme || {},
+            selectedNodeIds: [],
+            hoveredNodeId: null,
+            history: [],
+            historyIndex: -1,
+          }));
+        } catch (err: any) {
+          alert(`Failed to import project: ${err.message}`);
+        }
+      },
+
+      exportProject: (id) => {
+        const proj = get().projects.find((p) => p.id === id);
+        if (!proj) return;
+
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(proj, null, 2));
+        const downloadAnchor = document.createElement("a");
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", `${proj.name.toLowerCase().replace(/\s+/g, "-")}-config.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+      },
+
+      updateProjectEnv: (env) => {
+        set((state) => {
+          const nextProjects = state.projects.map((p) =>
+            p.id === state.activeProjectId ? { ...p, env } : p
+          );
+          return { env, projects: nextProjects };
+        });
+      },
+
+      updateProjectTheme: (theme) => {
+        set((state) => {
+          const nextProjects = state.projects.map((p) =>
+            p.id === state.activeProjectId ? { ...p, theme } : p
+          );
+          return { theme, projects: nextProjects };
+        });
+      },
 
       // Setters
       setPages: (pages) => {
@@ -213,6 +378,8 @@ export const useEditorStore = create<EditorStore>()(
       name: "website-builder-store",
       // Exclude history and selection lists from localStorage to avoid issues with serialization and Next.js hydration
       partialize: (state) => ({
+        projects: state.projects,
+        activeProjectId: state.activeProjectId,
         pages: state.pages,
         activePageId: state.activePageId,
         zoom: state.zoom,
@@ -220,10 +387,40 @@ export const useEditorStore = create<EditorStore>()(
         showGrid: state.showGrid,
         snapToGrid: state.snapToGrid,
         apis: state.apis || [],
+        env: state.env || {},
+        theme: state.theme || {},
       }),
     }
   )
 );
+
+// Global subscriber to synchronize pages, apis, env, and theme changes back into the projects array
+useEditorStore.subscribe((state) => {
+  const { projects, activeProjectId, pages, apis, env, theme } = state;
+  const activeProj = projects.find((p) => p.id === activeProjectId);
+  if (activeProj) {
+    const hasPagesChanged = activeProj.pages !== pages;
+    const hasApisChanged = activeProj.apis !== apis;
+    const hasEnvChanged = JSON.stringify(activeProj.env) !== JSON.stringify(env);
+    const hasThemeChanged = JSON.stringify(activeProj.theme) !== JSON.stringify(theme);
+
+    if (hasPagesChanged || hasApisChanged || hasEnvChanged || hasThemeChanged) {
+      useEditorStore.setState((s) => ({
+        projects: s.projects.map((p) =>
+          p.id === activeProjectId
+            ? {
+                ...p,
+                pages: hasPagesChanged ? pages : p.pages,
+                apis: hasApisChanged ? apis : p.apis,
+                env: hasEnvChanged ? env : p.env,
+                theme: hasThemeChanged ? theme : p.theme,
+              }
+            : p
+        ),
+      }));
+    }
+  }
+});
 
 // Factory function to create history command for AST changes
 export const createASTCommand = (

@@ -69,6 +69,18 @@ export interface Page {
   stateSchema?: StateVariable[];       // Per-page state declarations
 }
 
+// ─── Project ─────────────────────────────────────────────────────────
+
+export interface Project {
+  id: string;
+  name: string;
+  template?: string;
+  pages: Page[];
+  apis: { name: string; url: string; method: string; headers?: string; body?: string }[];
+  env?: Record<string, string>;
+  theme?: Record<string, unknown>;
+}
+
 // ─── Command (Undo/Redo) ─────────────────────────────────────────────
 
 export interface Command {

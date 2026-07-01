@@ -16,13 +16,15 @@ import {
   Copy,
   Clipboard,
   Play,
-  Edit3
+  Edit3,
+  ChevronDown
 } from "lucide-react";
 import { message, Modal } from "antd";
 import { generateFullPageCode } from "./generator/codeGenerator";
 import { ASTNode } from "./types";
 import { highlightJSX } from "./utils/highlighter";
 import { RuntimeProvider } from "./runtime/RuntimeProvider";
+import { ProjectManager } from "./sidebar/ProjectManager";
 
 export const EditorLayout: React.FC = () => {
   const {
@@ -40,9 +42,14 @@ export const EditorLayout: React.FC = () => {
     resetProject,
     isPreviewMode,
     setIsPreviewMode,
+    projects,
+    activeProjectId,
   } = useEditorStore();
 
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [isProjectManagerOpen, setIsProjectManagerOpen] = useState(false);
+  const activeProj = projects.find((p) => p.id === activeProjectId);
+  const activeProjectName = activeProj ? activeProj.name : "Default Project";
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -470,6 +477,30 @@ export const EditorLayout: React.FC = () => {
     message.success(`Downloaded ${fileName}`);
   };
 
+  const handleDownloadProject = async () => {
+    try {
+      const activeProj = useEditorStore.getState().projects.find((p) => p.id === useEditorStore.getState().activeProjectId);
+      if (!activeProj) {
+        message.error("Active project not found");
+        return;
+      }
+      const { generateNextJsProjectZip } = await import("./generator/projectGenerator");
+      const zipBlob = await generateNextJsProjectZip(activeProj);
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${activeProj.name.toLowerCase().replace(/\s+/g, "-")}-nextjs-app.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      message.success("Successfully generated and downloaded Next.js project ZIP!");
+    } catch (err: any) {
+      console.error(err);
+      message.error(`Failed to generate ZIP project: ${err.message}`);
+    }
+  };
+
   const getDraggedComponentInfo = () => {
     if (!activeDragId) return null;
     if (activeDragId.startsWith("library-")) {
@@ -495,15 +526,16 @@ export const EditorLayout: React.FC = () => {
         {/* Top Header */}
         <header className="h-16 bg-[#1f2937]/95 border-b border-gray-800 flex items-center justify-between px-6 z-35 shrink-0 select-none backdrop-blur">
           {/* Logo & Branding */}
-          <div className="flex items-center space-x-2">
-            <div className="p-2 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-lg shadow-lg">
+          <div className="flex items-center space-x-3 cursor-pointer group" onClick={() => setIsProjectManagerOpen(true)}>
+            <div className="p-2 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-lg shadow-lg group-hover:from-blue-500 group-hover:to-indigo-500 transition-all">
               <Sparkles size={18} className="text-white animate-pulse" />
             </div>
             <div>
-              <h1 className="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400">
-                Antigravity Website Builder
+              <h1 className="text-sm font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-indigo-400 flex items-center space-x-1.5">
+                <span>{activeProjectName}</span>
+                <ChevronDown size={12} className="text-blue-400 opacity-60 group-hover:opacity-100 transition-all mt-0.5" />
               </h1>
-              <p className="text-[10px] text-gray-500 font-medium">Clean Architecture Edition</p>
+              <p className="text-[10px] text-gray-500 font-medium">Click to manage projects</p>
             </div>
           </div>
 
@@ -686,16 +718,23 @@ export const EditorLayout: React.FC = () => {
           <button
             key="copy"
             onClick={handleCopyCode}
-            className="px-4 py-2 mr-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded border border-gray-700 hover:border-gray-500 text-xs font-semibold transition-all"
+            className="px-4 py-2 mr-2 bg-gray-800 hover:bg-gray-750 text-gray-300 rounded border border-gray-700 hover:border-gray-500 text-xs font-semibold transition-all"
           >
             Copy Code
           </button>,
           <button
             key="download"
             onClick={handleDownloadCode}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold transition-all"
+            className="px-4 py-2 mr-2 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold transition-all"
           >
             Download .tsx File
+          </button>,
+          <button
+            key="downloadProject"
+            onClick={handleDownloadProject}
+            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-xs font-semibold transition-all"
+          >
+            Download Project (ZIP)
           </button>,
         ]}
         styles={{
@@ -727,6 +766,11 @@ export const EditorLayout: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      <ProjectManager
+        open={isProjectManagerOpen}
+        onClose={() => setIsProjectManagerOpen(false)}
+      />
     </DndContext>
   );
 };
