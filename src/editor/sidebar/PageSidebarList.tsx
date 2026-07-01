@@ -68,7 +68,7 @@ export const PageSidebarList: React.FC = () => {
 
   // Helper to generate a unique route path
   const makeUniquePath = (basePath: string, currentPages: Page[]): string => {
-    let path = basePath.startsWith("/") ? basePath : `/${basePath}`;
+    const path = basePath.startsWith("/") ? basePath : `/${basePath}`;
     let uniquePath = path;
     let counter = 1;
     while (currentPages.some(p => p.path === uniquePath)) {

@@ -636,8 +636,8 @@ ${headerCode}
             width: ${layout.config?.sidebarCollapsed ? '"64px"' : `"${layout.config?.sidebarWidth || '240px'}"`},
             backgroundColor: "${layout.config?.sidebarBg || '#111827'}",
             position: ${layout.config?.sidebarFixed ? '"sticky"' : '"static"'},
-            left: ${layout.config?.sidebarPosition === "left" && layout.config?.sidebarFixed ? 0 : "auto"},
-            right: ${layout.config?.sidebarPosition === "right" && layout.config?.sidebarFixed ? 0 : "auto"},
+            left: ${layout.config?.sidebarPosition === "left" && layout.config?.sidebarFixed ? 0 : '"auto"'},
+            right: ${layout.config?.sidebarPosition === "right" && layout.config?.sidebarFixed ? 0 : '"auto"'},
             zIndex: 9,
             transition: "width 0.2s ease-in-out",
           }}
