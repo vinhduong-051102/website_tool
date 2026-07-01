@@ -36,7 +36,8 @@ import {
   Sliders,
   Star,
   Palette,
-  KeyRound
+  KeyRound,
+  Loader2
 } from "lucide-react";
 
 // Map string icon names to Lucide icon components
@@ -106,6 +107,8 @@ export const getIconComponent = (iconName: string) => {
       return <Palette size={20} />;
     case "KeyRound":
       return <KeyRound size={20} />;
+    case "Loader2":
+      return <Loader2 size={20} className="animate-spin" />;
     default:
       return <Layers size={20} />;
   }

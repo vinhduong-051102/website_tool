@@ -8,6 +8,7 @@ import { ImageComponent } from "./Image";
 import { RowComponent } from "./Row";
 import { ColumnComponent } from "./Column";
 import { FlexComponent } from "./Flex";
+import { LoadingComponent } from "./Loading";
 
 // Form Components Imports
 import { TextInputComponent } from "./TextInput";
@@ -48,6 +49,7 @@ export const componentRegistry: Record<string, BuilderComponent> = {
   Row: RowComponent,
   Column: ColumnComponent,
   Flex: FlexComponent,
+  Loading: LoadingComponent,
 
   // Registered Form Components
   TextInput: TextInputComponent,

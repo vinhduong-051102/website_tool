@@ -14,6 +14,9 @@ import { showComponentAction } from "./actions/showComponent";
 import { clearFormAction } from "./actions/clearForm";
 import { resetStateAction } from "./actions/resetState";
 import { runConditionAction } from "./actions/runCondition";
+import { showLoadingAction } from "./actions/showLoading";
+import { hideLoadingAction } from "./actions/hideLoading";
+import { toggleLoadingAction } from "./actions/toggleLoading";
 
 /** Registry mapping action type keys to their handlers */
 const actionRegistry: Record<string, ActionHandler> = {};
@@ -35,6 +38,9 @@ const builtInActions: ActionHandler[] = [
   clearFormAction,
   resetStateAction,
   runConditionAction,
+  showLoadingAction,
+  hideLoadingAction,
+  toggleLoadingAction,
 ];
 
 for (const action of builtInActions) {

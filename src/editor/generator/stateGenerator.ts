@@ -185,6 +185,23 @@ export const generateEventHandlerCode = (node: ASTNode, eventConfig: EventConfig
         actionCode += `    updateState("visibility.${cId}", true);\n`;
         break;
       }
+      case "showLoading": {
+        const path = (action.params.statePath as string) || "loading";
+        actionCode += `    updateState("${path}", true);\n`;
+        break;
+      }
+      case "hideLoading": {
+        const path = (action.params.statePath as string) || "loading";
+        actionCode += `    updateState("${path}", false);\n`;
+        break;
+      }
+      case "toggleLoading": {
+        const path = (action.params.statePath as string) || "loading";
+        const parts = path.split(".");
+        const safePath = "state." + parts.join("?.");
+        actionCode += `    updateState("${path}", !${safePath});\n`;
+        break;
+      }
       case "copyToClipboard": {
         const text = (action.params.text as string) || "";
         actionCode += `    navigator.clipboard.writeText(${JSON.stringify(text)});\n`;
