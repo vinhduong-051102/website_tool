@@ -3,6 +3,7 @@ import { useEditorStore, createASTCommand } from "../store/useEditorStore";
 import { getComponent } from "../components/registry";
 import { findNodeById } from "../utils/ast";
 import { ASTNode, BindingConfig, StateVariable } from "../types";
+import { useGlobalState } from "../state/useGlobalState";
 import {
   Link2,
   Plus,
@@ -206,13 +207,91 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
     });
   };
 
+  const globalData = useGlobalState((state) => state.data);
+
+  const getNestedValue = (obj: any, path: string): any => {
+    if (!path) return undefined;
+    const cleanPath = path.startsWith("state.") ? path.substring(6) : path;
+    const keys = cleanPath.split(".");
+    let current = obj;
+    for (const key of keys) {
+      if (current === null || current === undefined) return undefined;
+      current = current[key];
+    }
+    return current;
+  };
+
+  const renderValuePreview = (val: any) => {
+    if (val === null) {
+      return (
+        <span className="text-[10px] font-mono text-gray-500 bg-gray-950 px-1 py-0.5 rounded border border-gray-850">
+          null
+        </span>
+      );
+    }
+    if (val === undefined) {
+      return (
+        <span className="text-[10px] font-mono text-gray-600 bg-gray-950 px-1 py-0.5 rounded border border-gray-850">
+          undefined
+        </span>
+      );
+    }
+    const type = typeof val;
+    if (type === "boolean") {
+      return (
+        <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${val ? "bg-green-500/10 text-green-400 border border-green-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
+          {val ? "true" : "false"}
+        </span>
+      );
+    }
+    if (type === "number") {
+      return (
+        <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+          {val}
+        </span>
+      );
+    }
+    if (type === "string") {
+      return (
+        <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 truncate max-w-[120px]" title={val}>
+          "{val}"
+        </span>
+      );
+    }
+    if (Array.isArray(val)) {
+      return (
+        <details className="w-full cursor-pointer" onClick={(e) => e.stopPropagation()}>
+          <summary className="text-[10px] text-blue-400 font-mono hover:text-blue-300 select-none">
+            Array({val.length})
+          </summary>
+          <pre className="text-[9px] bg-gray-950 p-1.5 rounded mt-1 border border-gray-850 font-mono text-gray-400 max-h-28 overflow-y-auto whitespace-pre-wrap select-text w-full">
+            {JSON.stringify(val, null, 2)}
+          </pre>
+        </details>
+      );
+    }
+    if (type === "object") {
+      return (
+        <details className="w-full cursor-pointer" onClick={(e) => e.stopPropagation()}>
+          <summary className="text-[10px] text-blue-400 font-mono hover:text-blue-300 select-none">
+            Object ({Object.keys(val).length} keys)
+          </summary>
+          <pre className="text-[9px] bg-gray-950 p-1.5 rounded mt-1 border border-gray-850 font-mono text-gray-400 max-h-28 overflow-y-auto whitespace-pre-wrap select-text w-full">
+            {JSON.stringify(val, null, 2)}
+          </pre>
+        </details>
+      );
+    }
+    return <span className="text-[10px] text-gray-400">{String(val)}</span>;
+  };
+
   const stateTree = buildStateTree(stateSchema);
   const selectNodes = selectedPropKey ? mapTreeToSelectNodes(stateTree, selectedPropKey, selectedPropType) : [];
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       <div className="p-4 border-b border-gray-800 flex items-center justify-between">
-        <div className="flex items-center space-x-2 text-gray-300 font-semibold text-xs uppercase tracking-wider">
+        <div className="flex items-center space-x-2 text-gray-300 font-semibold text-xs uppercase tracking-wider font-mono">
           <Link2 size={14} className="text-blue-500" />
           <span>Data Bindings</span>
         </div>
@@ -234,15 +313,19 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {node.bindings.map((binding) => {
               const schemaField = bindableProps.find((p) => p.key === binding.prop);
+              const currentValue = getNestedValue(globalData, binding.expression);
+              const stateVar = stateSchema.find((v) => v.key === binding.expression);
+              const resolvedType = stateVar?.type || (currentValue === null ? "null" : Array.isArray(currentValue) ? "array" : typeof currentValue);
+
               return (
                 <div
                   key={binding.prop}
-                  className="flex items-center justify-between bg-gray-900/40 p-3 rounded-lg border border-gray-800 hover:border-gray-700/60 transition-all"
+                  className="flex flex-col space-y-2 bg-gray-900/40 p-3 rounded-lg border border-gray-800 hover:border-gray-700/60 transition-all"
                 >
-                  <div className="flex flex-col space-y-1.5 overflow-hidden mr-3">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-1.5">
                       <span className="text-xs font-semibold text-gray-300">
                         {schemaField?.name || binding.prop}
@@ -251,32 +334,42 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
                         ({binding.prop})
                       </span>
                     </div>
-                    <div className="flex items-center space-x-1 text-[10px] font-mono text-blue-400">
-                      <ArrowRight size={10} className="text-gray-600 shrink-0" />
-                      <span className="bg-gray-950 px-1 py-0.5 rounded border border-gray-850 truncate max-w-[150px]">
-                        state.{binding.expression}
-                      </span>
-                      {binding.transform && (
-                        <span className="bg-gray-950 px-1 py-0.5 rounded border border-gray-850 text-yellow-500/80">
-                          {binding.transform}
-                        </span>
-                      )}
+                    
+                    <div className="flex items-center space-x-1">
+                      <button
+                        onClick={() => handleOpenEditModal(binding)}
+                        className="px-2 py-0.5 rounded text-gray-400 hover:text-blue-400 hover:bg-gray-800 transition-all text-[10px] font-medium"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteBinding(binding.prop)}
+                        className="p-1 rounded text-gray-500 hover:text-red-400 hover:bg-gray-800 transition-all"
+                      >
+                        <Trash2 size={11} />
+                      </button>
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-1 shrink-0">
-                    <button
-                      onClick={() => handleOpenEditModal(binding)}
-                      className="p-1.5 rounded text-gray-500 hover:text-blue-400 hover:bg-gray-800 transition-all text-xs font-medium"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteBinding(binding.prop)}
-                      className="p-1.5 rounded text-gray-500 hover:text-red-400 hover:bg-gray-800 transition-all"
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                  <div className="grid grid-cols-1 gap-2 pt-2 border-t border-gray-850/60 text-[10px]">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-bold select-none">State Path:</span>
+                      <span className="font-mono text-blue-400 truncate max-w-[180px]" title={`state.${binding.expression}`}>
+                        state.{binding.expression}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-bold select-none">Data Type:</span>
+                      <span className="font-mono text-gray-400 capitalize">
+                        {resolvedType}
+                      </span>
+                    </div>
+                    <div className="flex flex-col space-y-1">
+                      <span className="text-gray-500 font-bold select-none">Current Value:</span>
+                      <div className="flex items-center pl-1">
+                        {renderValuePreview(currentValue)}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );

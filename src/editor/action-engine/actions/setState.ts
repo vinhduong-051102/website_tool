@@ -25,11 +25,15 @@ export const setStateAction: ActionHandler = {
     const path = params.path as string;
     const valueSource = (params.valueSource as string) || "event";
 
+    console.log('[setState Action] params:', JSON.stringify(params));
+    console.log('[setState Action] path:', path, 'valueSource:', valueSource);
+
     let value: unknown;
 
     if (valueSource === "event") {
       // Use the event's value directly (e.g. input text, switch boolean, select option)
       const eventVal = ctx.event.nativeEvent;
+      console.log('[setState Action] event nativeEvent:', eventVal, 'type:', typeof eventVal);
       if (eventVal && typeof eventVal === "object" && "target" in eventVal) {
         value = (eventVal as any).target?.value;
       } else {
@@ -49,6 +53,7 @@ export const setStateAction: ActionHandler = {
       }
     }
 
+    console.log('[setState Action] FINAL: setState("' + path + '",', value, ')');
     ctx.setState(path, value);
   },
 };

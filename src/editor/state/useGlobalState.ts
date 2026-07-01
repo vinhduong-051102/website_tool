@@ -67,9 +67,12 @@ export const useGlobalState = create<GlobalStateStore>()((set, get) => ({
 
   setState: (path: string, value: unknown): void => {
     const cleanPath = path.startsWith("state.") ? path.substring(6) : path;
+    console.log('[useGlobalState.setState] cleanPath:', cleanPath, 'value:', value);
+    console.log('[useGlobalState.setState] BEFORE data:', JSON.stringify(get().data));
     set((state) => ({
       data: setByPath(state.data, cleanPath, value),
     }));
+    console.log('[useGlobalState.setState] AFTER data:', JSON.stringify(get().data));
   },
 
   toggleState: (path: string): void => {

@@ -31,6 +31,7 @@ export const ASTRenderer: React.FC<ASTRendererProps> = ({ node }) => {
   const { createRuntimeContext } = useRuntime();
 
   const triggerEvent = React.useCallback((eventName: string, nativeEvent?: any) => {
+    console.log(`[ASTRenderer.triggerEvent] nodeId: ${node.id}, eventName: ${eventName}, nativeEvent:`, nativeEvent);
     const ctx = createRuntimeContext(node.id, eventName, nativeEvent);
     handleComponentEvent(node, eventName, ctx);
   }, [node, createRuntimeContext]);

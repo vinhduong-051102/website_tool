@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useEditorStore, createASTCommand } from "../store/useEditorStore";
 import { StateVariable } from "../types";
+import { useGlobalState } from "../state/useGlobalState";
 import {
   Database,
   Plus,
@@ -11,6 +12,83 @@ import {
   HelpCircle
 } from "lucide-react";
 import { Modal, Form, Input, Select, Button, Space, message, Table, Tag } from "antd";
+
+const StateValueCell: React.FC<{ path: string }> = ({ path }) => {
+  const value = useGlobalState((state) => {
+    if (!path) return undefined;
+    const cleanPath = path.startsWith("state.") ? path.substring(6) : path;
+    const keys = cleanPath.split(".");
+    let current: any = state.data;
+    for (const key of keys) {
+      if (current === null || current === undefined) return undefined;
+      current = current[key];
+    }
+    return current;
+  });
+
+  if (value === null) {
+    return (
+      <span className="text-[10px] font-mono text-gray-500 bg-gray-950 px-1.5 py-0.5 rounded border border-gray-800">
+        null
+      </span>
+    );
+  }
+  if (value === undefined) {
+    return (
+      <span className="text-[10px] font-mono text-gray-600 bg-gray-950 px-1.5 py-0.5 rounded border border-gray-800">
+        undefined
+      </span>
+    );
+  }
+  const type = typeof value;
+  if (type === "boolean") {
+    return (
+      <span className={`text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded ${value ? "bg-green-500/10 text-green-400 border border-green-500/20" : "bg-red-500/10 text-red-400 border border-red-500/20"}`}>
+        {value ? "true" : "false"}
+      </span>
+    );
+  }
+  if (type === "number") {
+    return (
+      <span className="text-[10px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+        {value as number}
+      </span>
+    );
+  }
+  if (type === "string") {
+    return (
+      <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 truncate max-w-[150px]" title={value as string}>
+        "{value as string}"
+      </span>
+    );
+  }
+  if (Array.isArray(value)) {
+    return (
+      <details className="w-full cursor-pointer" onClick={(e) => e.stopPropagation()}>
+        <summary className="text-[10px] text-blue-400 font-mono hover:text-blue-300 select-none">
+          Array({value.length})
+        </summary>
+        <pre className="text-[9px] bg-gray-950 p-2 rounded mt-1 border border-gray-850 font-mono text-gray-400 max-h-32 overflow-y-auto whitespace-pre-wrap select-text w-full max-w-[300px]">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      </details>
+    );
+  }
+  if (type === "object") {
+    return (
+      <details className="w-full cursor-pointer" onClick={(e) => e.stopPropagation()}>
+        <summary className="text-[10px] text-blue-400 font-mono hover:text-blue-300 select-none">
+          Object ({Object.keys(value).length} keys)
+        </summary>
+        <pre className="text-[9px] bg-gray-950 p-2 rounded mt-1 border border-gray-850 font-mono text-gray-400 max-h-32 overflow-y-auto whitespace-pre-wrap select-text w-full max-w-[300px]">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      </details>
+    );
+  }
+  return <span className="text-[10px] text-gray-400">{String(value)}</span>;
+};
+
 
 export const StateSchemaPanel: React.FC = () => {
   const { pages, activePageId, executeCommand } = useEditorStore();
@@ -128,7 +206,7 @@ export const StateSchemaPanel: React.FC = () => {
       title: "Type",
       dataIndex: "type",
       key: "type",
-      width: 80,
+      width: 70,
       render: (type: string) => {
         let color = "blue";
         if (type === "boolean") color = "green";
@@ -142,12 +220,20 @@ export const StateSchemaPanel: React.FC = () => {
       dataIndex: "defaultValue",
       key: "defaultValue",
       ellipsis: true,
+      width: 100,
       render: (val: any, record: StateVariable) => {
         if (record.type === "object" || record.type === "array") {
           return <span className="font-mono text-[10px] text-gray-500">{JSON.stringify(val)}</span>;
         }
         return <span className="font-mono text-[10px] text-gray-400">{String(val ?? "")}</span>;
       },
+    },
+    {
+      title: "Current Value",
+      key: "currentValue",
+      render: (_: any, record: StateVariable) => (
+        <StateValueCell path={record.key} />
+      ),
     },
     {
       title: "Actions",
