@@ -162,7 +162,7 @@ export const ActionConfigurator: React.FC<ActionConfiguratorProps> = ({
   // Pages Options
   const pageOptions = pages.map((p) => ({
     label: `${p.name} (${p.path})`,
-    value: p.path,
+    value: p.id,
   }));
 
   // Modals List (Extracted from stateSchema modal.*.open)
@@ -448,11 +448,11 @@ export const ActionConfigurator: React.FC<ActionConfiguratorProps> = ({
                       </Button>
                     </div>
                   );
-                } else if (param.key === "path" && selectedType === "navigate") {
+                } else if (param.key === "targetPageId" && selectedType === "navigate") {
                   // Page dropdown
                   controlInput = (
                     <Select
-                      placeholder="Select page path..."
+                      placeholder="Select page..."
                       options={pageOptions}
                       showSearch
                       optionFilterProp="label"

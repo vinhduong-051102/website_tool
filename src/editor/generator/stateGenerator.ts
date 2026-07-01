@@ -1,4 +1,5 @@
 import { ASTNode, Page, StateVariable, BindingConfig, EventConfig } from "../types";
+import { useEditorStore } from "../store/useEditorStore";
 
 // Helper to get safe javascript path for a binding, e.g. state.currentUser?.name
 export const getBindingExpression = (binding: BindingConfig): string => {
@@ -156,12 +157,67 @@ export const generateEventHandlerCode = (node: ASTNode, eventConfig: EventConfig
         break;
       }
       case "navigate": {
-        const url = (action.params.url as string) || "";
-        const target = (action.params.target as string) || "_self";
-        if (target === "_blank") {
-          actionCode += `    window.open(${JSON.stringify(url)}, "_blank");\n`;
+        const targetPageId = (action.params.targetPageId as string) || "";
+        const routeParamsRaw = action.params.routeParams;
+        const queryParamsRaw = action.params.queryParams;
+        const replace = !!action.params.replace;
+        const newTab = !!action.params.newTab;
+
+        const compileJsonExpression = (val: unknown): string => {
+          if (!val) return "{}";
+          let str = typeof val === "string" ? val : JSON.stringify(val);
+          str = str.replace(/["']\{\{([^}]+)\}\}["']/g, (m: string, expr: string) => {
+            const cleanExpr = expr.trim().startsWith("state.") ? expr.trim() : `state.${expr.trim()}`;
+            return cleanExpr;
+          });
+          str = str.replace(/["']([^"']*(?:\{\{[^}]+\}\}[^"']*)+)["']/g, (m: string, content: string) => {
+            const interpolated = content.replace(/\{\{([^}]+)\}\}/g, (im: string, expr: string) => {
+              const cleanExpr = expr.trim().startsWith("state.") ? expr.trim() : `state.${expr.trim()}`;
+              return `\${${cleanExpr}}`;
+            });
+            return `\`${interpolated}\``;
+          });
+          return str;
+        };
+
+        const pagesList = useEditorStore.getState().pages;
+
+        if (newTab) {
+          actionCode += `    // navigate to page ID: ${targetPageId}\n`;
+          actionCode += `    (() => {\n`;
+          actionCode += `      const pagesList = ${JSON.stringify(pagesList)};\n`;
+          actionCode += `      const targetPage = pagesList.find(p => p.id === "${targetPageId}");\n`;
+          actionCode += `      if (!targetPage) return;\n`;
+          actionCode += `      let routePath = targetPage.path;\n`;
+          actionCode += `      const routeParams = ${compileJsonExpression(routeParamsRaw)};\n`;
+          actionCode += `      const queryParams = ${compileJsonExpression(queryParamsRaw)};\n`;
+          actionCode += `      for (const [key, value] of Object.entries(routeParams)) {\n`;
+          actionCode += `        routePath = routePath.replace(\`[\${key}]\`, String(value));\n`;
+          actionCode += `      }\n`;
+          actionCode += `      const queryParts = Object.entries(queryParams).map(([k, v]) => \`\${encodeURIComponent(k)}=\\\${encodeURIComponent(String(v))}\`);\n`;
+          actionCode += `      if (queryParts.length > 0) {\n`;
+          actionCode += `        routePath += (routePath.includes("?") ? "&" : "?") + queryParts.join("&");\n`;
+          actionCode += `      }\n`;
+          actionCode += `      window.open(routePath, "_blank");\n`;
+          actionCode += `    })();\n`;
         } else {
-          actionCode += `    window.location.href = ${JSON.stringify(url)};\n`;
+          actionCode += `    // navigate to page ID: ${targetPageId}\n`;
+          actionCode += `    (() => {\n`;
+          actionCode += `      const pagesList = ${JSON.stringify(pagesList)};\n`;
+          actionCode += `      const targetPage = pagesList.find(p => p.id === "${targetPageId}");\n`;
+          actionCode += `      if (!targetPage) return;\n`;
+          actionCode += `      let routePath = targetPage.path;\n`;
+          actionCode += `      const routeParams = ${compileJsonExpression(routeParamsRaw)};\n`;
+          actionCode += `      const queryParams = ${compileJsonExpression(queryParamsRaw)};\n`;
+          actionCode += `      for (const [key, value] of Object.entries(routeParams)) {\n`;
+          actionCode += `        routePath = routePath.replace(\`[\${key}]\`, String(value));\n`;
+          actionCode += `      }\n`;
+          actionCode += `      const queryParts = Object.entries(queryParams).map(([k, v]) => \`\${encodeURIComponent(k)}=\\\${encodeURIComponent(String(v))}\`);\n`;
+          actionCode += `      if (queryParts.length > 0) {\n`;
+          actionCode += `        routePath += (routePath.includes("?") ? "&" : "?") + queryParts.join("&");\n`;
+          actionCode += `      }\n`;
+          actionCode += `      router.${replace ? "replace" : "push"}(routePath);\n`;
+          actionCode += `    })();\n`;
         }
         break;
       }

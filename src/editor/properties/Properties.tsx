@@ -150,7 +150,7 @@ export const Properties: React.FC = () => {
   };
 
   // Direct commit for single-click inputs (Select, Color picker, Range slider)
-  const handleDirectCommit = (key: string, value: string, target: "props" | "styles") => {
+  const handleDirectCommit = (key: string, value: any, target: "props" | "styles") => {
     if (!activePage) return;
 
     let updatedRoot: ASTNode;
@@ -420,6 +420,96 @@ export const Properties: React.FC = () => {
                   </div>
                 );
               })}
+
+              {/* Navigation Section */}
+              {(() => {
+                const isOpen = !!openSections["Navigation"];
+                const linkToPageId = (node.props.linkToPageId as string) || "";
+                const linkRouteParams = (node.props.linkRouteParams as string) || "";
+                const linkQueryParams = (node.props.linkQueryParams as string) || "";
+                const linkNewTab = !!node.props.linkNewTab;
+
+                return (
+                  <div className="border border-gray-800/80 rounded-lg overflow-hidden bg-gray-900/10">
+                    <button
+                      onClick={() => toggleSection("Navigation")}
+                      className="w-full px-4 py-3 bg-[#111827]/40 hover:bg-[#111827]/70 border-b border-gray-800/60 flex items-center justify-between transition-all"
+                    >
+                      <div className="flex items-center space-x-2.5">
+                        <Link2 size={14} className="text-pink-400" />
+                        <span className="text-xs font-bold text-gray-300 uppercase tracking-wider">
+                          Navigation (Link)
+                        </span>
+                      </div>
+                      {isOpen ? <ChevronDown size={14} className="text-gray-500" /> : <ChevronRight size={14} className="text-gray-500" />}
+                    </button>
+
+                    {isOpen && (
+                      <div className="p-4 space-y-4 bg-gray-900/5">
+                        {/* Target Page */}
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] text-gray-400 font-medium flex justify-between">
+                            <span>Link to Page</span>
+                          </label>
+                          <select
+                            value={linkToPageId}
+                            onChange={(e) => handleDirectCommit("linkToPageId", e.target.value, "props")}
+                            className="w-full bg-[#111827] border border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-2.5 py-1.5 text-xs text-gray-200 outline-none transition-all"
+                          >
+                            <option value="">None (No navigation)</option>
+                            {pages.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.name} ({p.path})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Route Params */}
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] text-gray-400 font-medium flex justify-between">
+                            <span>Route Params (JSON)</span>
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={linkRouteParams}
+                            placeholder='e.g. {"id": "{{state.selectedProduct.id}}"}'
+                            onChange={(e) => handleLiveChange("linkRouteParams", e.target.value, "props")}
+                            onBlur={() => handleCommitTyping("linkRouteParams", "props")}
+                            className="w-full bg-[#111827] border border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 outline-none transition-all resize-none font-mono"
+                          />
+                        </div>
+
+                        {/* Query Params */}
+                        <div className="space-y-1.5">
+                          <label className="text-[11px] text-gray-400 font-medium flex justify-between">
+                            <span>Query Params (JSON)</span>
+                          </label>
+                          <textarea
+                            rows={2}
+                            value={linkQueryParams}
+                            placeholder='e.g. {"ref": "home"}'
+                            onChange={(e) => handleLiveChange("linkQueryParams", e.target.value, "props")}
+                            onBlur={() => handleCommitTyping("linkQueryParams", "props")}
+                            className="w-full bg-[#111827] border border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 outline-none transition-all resize-none font-mono"
+                          />
+                        </div>
+
+                        {/* New Tab */}
+                        <div className="flex items-center justify-between pt-1">
+                          <span className="text-[11px] text-gray-400 font-medium">Open in new tab</span>
+                          <input
+                            type="checkbox"
+                            checked={linkNewTab}
+                            onChange={(e) => handleDirectCommit("linkNewTab", e.target.checked, "props")}
+                            className="w-4 h-4 text-blue-600 bg-gray-900 border-gray-800 rounded focus:ring-blue-500 focus:ring-offset-gray-900 focus:ring-2"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}

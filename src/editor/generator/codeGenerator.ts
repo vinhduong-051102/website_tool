@@ -1,4 +1,4 @@
-import { ASTNode, StateVariable } from "../types";
+import { ASTNode, Page, StateVariable } from "../types";
 import { getComponent } from "../components/registry";
 import { getResponsiveTailwindClasses } from "../utils/tailwind";
 import { 
@@ -6,6 +6,87 @@ import {
   buildInitialStateCode, 
   generateAllEventHandlers 
 } from "./stateGenerator";
+import { useEditorStore } from "../store/useEditorStore";
+
+export const wrapWithNextJsLink = (node: ASTNode, code: string, pages: Page[]): string => {
+  const linkToPageId = node.props.linkToPageId;
+  if (!linkToPageId) return code;
+
+  const targetPage = pages.find((p) => p.id === linkToPageId);
+  if (!targetPage) return code;
+
+  const linkNewTab = !!node.props.linkNewTab;
+  const linkRouteParams = node.props.linkRouteParams;
+  const linkQueryParams = node.props.linkQueryParams;
+
+  // Resolve path
+  let hrefStr = targetPage.path;
+  let routeParams: Record<string, any> = {};
+  if (typeof linkRouteParams === "string") {
+    try { routeParams = JSON.parse(linkRouteParams); } catch {}
+  }
+  let queryParams: Record<string, any> = {};
+  if (typeof linkQueryParams === "string") {
+    try { queryParams = JSON.parse(linkQueryParams); } catch {}
+  }
+
+  const convertExpression = (val: string): string => {
+    const trimmed = val.trim();
+    const match = trimmed.match(/^\{\{([^}]+)\}\}$/);
+    if (match) {
+      const expr = match[1].trim();
+      const cleanExpr = expr.startsWith("state.") ? expr.substring(6) : expr;
+      return `\${state?.${cleanExpr} ?? ''}`;
+    }
+
+    return val.replace(/\{\{([^}]+)\}\}/g, (m, expression) => {
+      const expr = expression.trim();
+      const cleanExpr = expr.startsWith("state.") ? expr.substring(6) : expr;
+      return `\${state?.${cleanExpr} ?? ''}`;
+    });
+  };
+
+  // Construct href expression
+  let isDynamic = false;
+  let resolvedHref = hrefStr;
+
+  // Replace route params in path e.g. /products/[id]
+  for (const [key, value] of Object.entries(routeParams)) {
+    const valStr = String(value);
+    if (valStr.includes("{{")) {
+      isDynamic = true;
+      resolvedHref = resolvedHref.replace(`[${key}]`, convertExpression(valStr));
+    } else {
+      resolvedHref = resolvedHref.replace(`[${key}]`, valStr);
+    }
+  }
+
+  // Construct query string
+  const queryParts: string[] = [];
+  for (const [key, value] of Object.entries(queryParams)) {
+    const valStr = String(value);
+    if (valStr.includes("{{")) {
+      isDynamic = true;
+      queryParts.push(`${key}=${convertExpression(valStr)}`);
+    } else {
+      queryParts.push(`${key}=${valStr}`);
+    }
+  }
+
+  if (queryParts.length > 0) {
+    resolvedHref += (resolvedHref.includes("?") ? "&" : "?") + queryParts.join("&");
+  }
+
+  const hrefAttribute = isDynamic || resolvedHref.includes("${")
+    ? `href={\`${resolvedHref}\`}`
+    : `href="${resolvedHref}"`;
+
+  const newTabAttr = linkNewTab ? ' target="_blank"' : "";
+
+  return `<Link ${hrefAttribute}${newTabAttr} className="contents">
+  ${code.split('\n').join('\n  ')}
+</Link>`;
+};
 
 export const wrapWithFormLayout = (node: ASTNode, inputCode: string): string => {
   const { label, helperText, required, hidden } = node.props;
@@ -59,6 +140,12 @@ export const generateReactCode = (node: ASTNode, indent: number = 0): string => 
   // Wrap with Form Layout if it's a form component
   if (componentDef.metadata.category === "Form") {
     code = wrapWithFormLayout(node, code);
+  }
+
+  // Wrap with Next.js Link if configured
+  if (node.props.linkToPageId) {
+    const pages = useEditorStore.getState().pages;
+    code = wrapWithNextJsLink(node, code, pages);
   }
 
   // Indent lines properly

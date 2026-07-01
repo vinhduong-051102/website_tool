@@ -40,6 +40,12 @@ const checkAxiosUsage = (project: Project): boolean => {
   return project.apis && project.apis.length > 0;
 };
 
+// Scans node recursively to check if any Link property is used
+const checkLinkUsage = (node: ASTNode): boolean => {
+  if (node.props?.linkToPageId) return true;
+  return node.children?.some(checkLinkUsage) ?? false;
+};
+
 export const generateNextJsProjectZip = async (project: Project): Promise<Blob> => {
   const zip = new JSZip();
 
@@ -465,7 +471,10 @@ export default function RootLayout({
 
     collectImports(page.ast);
 
-    let imports = `"use client";\n\nimport React, { useEffect } from 'react';\nimport { useGlobalState } from '@/store/useGlobalState';\n`;
+    let imports = `"use client";\n\nimport React, { useEffect } from 'react';\nimport { useGlobalState } from '@/store/useGlobalState';\nimport { useRouter } from 'next/navigation';\n`;
+    if (checkLinkUsage(page.ast)) {
+      imports += `import Link from 'next/link';\n`;
+    }
     if (antdImports.size > 0) {
       imports += `import { ${Array.from(antdImports).sort().join(", ")} } from 'antd';\n`;
     }
@@ -479,6 +488,7 @@ export default function RootLayout({
 export default function ${cleanName}Page() {
   const state = useGlobalState((s) => s.data);
   const updateState = useGlobalState((s) => s.setState);
+  const router = useRouter();
 
   // Initialize page-specific state schema on mount
   useEffect(() => {

@@ -43,7 +43,12 @@ export interface BindingConfig {
 export interface ASTNode {
   id: string;
   type: string;
-  props: Record<string, unknown>;
+  props: Record<string, unknown> & {
+    linkToPageId?: string;
+    linkRouteParams?: string;
+    linkQueryParams?: string;
+    linkNewTab?: boolean;
+  };
   styles: BreakpointStyles;
   children?: ASTNode[];
   events?: EventConfig[];              // Event handler chains

@@ -37,8 +37,10 @@ import {
   Star,
   Palette,
   KeyRound,
-  Loader2
+  Loader2,
+  FileText
 } from "lucide-react";
+import { PageSidebarList } from "./PageSidebarList";
 
 // Map string icon names to Lucide icon components
 export const getIconComponent = (iconName: string) => {
@@ -149,7 +151,7 @@ const DraggableItem: React.FC<DraggableItemProps> = ({ type, name, iconName }) =
 };
 
 export const Sidebar: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"library" | "structure">("library");
+  const [activeTab, setActiveTab] = useState<"library" | "structure" | "pages">("library");
 
   // Group registry components by category
   const components = Object.values(componentRegistry);
@@ -196,6 +198,17 @@ export const Sidebar: React.FC = () => {
             <Layers size={13} />
             <span>Structure</span>
           </button>
+          <button
+            onClick={() => setActiveTab("pages")}
+            className={`flex-1 py-1.5 rounded-md text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
+              activeTab === "pages"
+                ? "bg-blue-600/90 text-white shadow shadow-blue-500/10"
+                : "text-gray-400 hover:text-gray-200 hover:bg-gray-800/40"
+            }`}
+          >
+            <FileText size={13} />
+            <span>Pages</span>
+          </button>
         </div>
       </div>
 
@@ -224,8 +237,10 @@ export const Sidebar: React.FC = () => {
               );
             })}
           </div>
-        ) : (
+        ) : activeTab === "structure" ? (
           <ComponentTree />
+        ) : (
+          <PageSidebarList />
         )}
       </div>
     </div>

@@ -44,21 +44,84 @@ export const ASTRenderer: React.FC<ASTRendererProps> = ({ node }) => {
 
   // Dynamically map events in preview mode
   const runtimeHandlers = useMemo(() => {
-    if (!isPreviewMode || !node.events) return {};
+    if (!isPreviewMode) return {};
+
     const handlers: Record<string, (e: React.SyntheticEvent) => void> = {};
-    for (const eventConfig of node.events) {
-      const eventName = eventConfig.event;
-      handlers[eventName] = (e) => {
-        // Prevent default/propagation if appropriate
-        if (eventName === "onClick") {
-          e.stopPropagation();
-          if (node.type === "Button") {
-            e.preventDefault();
-          }
+
+    // Check if the component is a Link
+    const linkToPageId = node.props.linkToPageId;
+
+    if (linkToPageId) {
+      handlers["onClick"] = (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+
+        const store = useEditorStore.getState();
+        const activeProj = store.projects.find((p) => p.id === store.activeProjectId);
+        const pages = activeProj ? activeProj.pages : store.pages;
+        const targetPage = pages.find((p) => p.id === linkToPageId);
+
+        if (!targetPage) {
+          console.warn(`Link target page ID ${linkToPageId} not found.`);
+          return;
         }
-        triggerEvent(eventName, e.nativeEvent);
+
+        const linkNewTab = !!node.props.linkNewTab;
+        const linkRouteParams = node.props.linkRouteParams;
+        const linkQueryParams = node.props.linkQueryParams;
+
+        let routePath = targetPage.path;
+        let routeParams: Record<string, any> = {};
+        if (typeof linkRouteParams === "string") {
+          try { routeParams = JSON.parse(linkRouteParams); } catch {}
+        }
+        let queryParams: Record<string, any> = {};
+        if (typeof linkQueryParams === "string") {
+          try { queryParams = JSON.parse(linkQueryParams); } catch {}
+        }
+
+        // Replace route parameters
+        for (const [key, value] of Object.entries(routeParams)) {
+          routePath = routePath.replace(`[${key}]`, String(value));
+        }
+
+        // Append query params
+        const queryParts = Object.entries(queryParams)
+          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`);
+        if (queryParts.length > 0) {
+          routePath += (routePath.includes("?") ? "&" : "?") + queryParts.join("&");
+        }
+
+        if (linkNewTab) {
+          window.open(routePath, "_blank");
+        } else {
+          store.setActivePageId(linkToPageId);
+        }
       };
     }
+
+    // Add other event handlers
+    if (node.events) {
+      for (const eventConfig of node.events) {
+        const eventName = eventConfig.event;
+        const originalHandler = handlers[eventName];
+
+        handlers[eventName] = (e) => {
+          if (eventName === "onClick") {
+            e.stopPropagation();
+            if (node.type === "Button") {
+              e.preventDefault();
+            }
+            // Execute original link click if any
+            if (originalHandler) {
+              originalHandler(e);
+            }
+          }
+          triggerEvent(eventName, e.nativeEvent);
+        };
+      }
+    }
+
     return handlers;
   }, [isPreviewMode, node, triggerEvent]);
 
