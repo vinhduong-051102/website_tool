@@ -42,6 +42,7 @@ const createDefaultRootNode = (): ASTNode => ({
 export const PageSidebarList: React.FC = () => {
   const { 
     pages, 
+    layouts,
     activePageId, 
     setActivePageId, 
     executeCommand 
@@ -102,28 +103,36 @@ export const PageSidebarList: React.FC = () => {
               params: {
                 ...act.params,
                 targetPageId: "",
+                url: ""
+              }
+            };
+          } else if (action === "update" && newPath) {
+            return {
+              ...act,
+              params: {
+                ...act.params,
+                url: newPath
               }
             };
           }
         }
         return act;
       });
-      return {
-        ...evt,
-        actions: updatedActions,
-      };
+      return { ...evt, actions: updatedActions };
     });
 
-    const updatedChildren = node.children?.map(child => 
-      updatePageReferencesInAST(child, pageId, action, newPath)
-    );
+    const updatedNode = { ...node, props: updatedProps };
+    if (updatedEvents) {
+      updatedNode.events = updatedEvents;
+    }
 
-    return {
-      ...node,
-      props: updatedProps,
-      events: updatedEvents,
-      children: updatedChildren,
-    };
+    if (node.children) {
+      updatedNode.children = node.children.map(child => 
+        updatePageReferencesInAST(child, pageId, action, newPath)
+      );
+    }
+
+    return updatedNode;
   };
 
   const handleCreatePage = () => {
@@ -134,12 +143,14 @@ export const PageSidebarList: React.FC = () => {
     const pathCandidate = newPath.trim() ? newPath.trim() : `/${newName.toLowerCase().replace(/\s+/g, "-")}`;
     const formattedPath = makeUniquePath(pathCandidate, pages);
 
+    const defaultLayout = layouts?.find(l => l.isDefault) || layouts?.[0];
     const newPageObj: Page = {
       id: `page-${Math.random().toString(36).substr(2, 9)}`,
       name: newName.trim(),
       path: formattedPath,
       ast: createDefaultRootNode(),
       stateSchema: [],
+      layoutId: defaultLayout?.id,
     };
 
     const nextPages = [...pages, newPageObj];

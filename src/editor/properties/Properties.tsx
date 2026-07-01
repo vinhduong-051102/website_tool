@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from "react";
 import { useEditorStore, createASTCommand } from "../store/useEditorStore";
 import { getComponent } from "../components/registry";
-import { findNodeById, updateProps, updateStyles } from "../utils/ast";
+import { findNodeById, updateProps, updateStyles, findNodeContainer } from "../utils/ast";
 import { ASTNode } from "../types";
 import { ChevronDown, ChevronRight, Sliders, Type, LayoutGrid, Paintbrush, Zap, Link2 } from "lucide-react";
 import { EventsPanel } from "./EventsPanel";
 import { BindingsPanel } from "./BindingsPanel";
 import { StateSchemaPanel } from "./StateSchemaPanel";
 
+import { PageAndLayoutSettings } from "./PageAndLayoutSettings";
+
 export const Properties: React.FC = () => {
   const {
     pages,
+    layouts,
+    setLayouts,
     activePageId,
     selectedNodeIds,
     activeBreakpoint,
@@ -20,10 +24,19 @@ export const Properties: React.FC = () => {
 
   const selectedNodeId = selectedNodeIds[0];
   const activePage = pages.find((p) => p.id === activePageId);
-  const rootNode = activePage?.ast;
+  const activeLayout = layouts.find((l) => l.id === activePage?.layoutId);
 
-  // Retrieve the selected node from the AST
-  const node = selectedNodeId && rootNode ? findNodeById(rootNode, selectedNodeId) : null;
+  // Find the selected node and its containing AST target
+  let node: ASTNode | null = null;
+  let containerInfo: { target: "page" | "header" | "sidebar" | "footer"; root: ASTNode } | null = null;
+
+  if (activePage && selectedNodeId) {
+    containerInfo = findNodeContainer(activePage.ast, activeLayout || null, selectedNodeId);
+    if (containerInfo) {
+      node = findNodeById(containerInfo.root, selectedNodeId);
+    }
+  }
+
   const componentDef = node ? getComponent(node.type) : null;
 
   // Accordion sections collapse state
@@ -36,19 +49,21 @@ export const Properties: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<"design" | "events" | "bindings">("design");
 
-  // Track old pages snapshot for blur commits (undo history)
+  // Track old snapshots for blur commits (undo history)
   const [pagesSnapshotBeforeEdit, setPagesSnapshotBeforeEdit] = useState<typeof pages | null>(null);
+  const [layoutsSnapshotBeforeEdit, setLayoutsSnapshotBeforeEdit] = useState<typeof layouts | null>(null);
 
   // Reset snapshot when selection changes
   useEffect(() => {
     setPagesSnapshotBeforeEdit(null);
+    setLayoutsSnapshotBeforeEdit(null);
     setActiveTab("design");
   }, [selectedNodeId]);
 
   if (!node || !componentDef) {
     return (
       <div className="w-88 bg-[#1f2937]/95 border-l border-gray-800 flex flex-col h-full z-15 backdrop-blur shrink-0 overflow-hidden">
-        <StateSchemaPanel />
+        <PageAndLayoutSettings />
       </div>
     );
   }
@@ -95,26 +110,31 @@ export const Properties: React.FC = () => {
 
   // Handle live updating on keystroke (updates canvas preview instantly, without spamming undo history)
   const handleLiveChange = (key: string, value: string, target: "props" | "styles") => {
-    if (!activePage) return;
+    if (!activePage || !containerInfo || !node) return;
 
-    // Capture pages state snapshot before the very first typing keystroke
+    // Capture state snapshots before the very first typing keystroke
     if (!pagesSnapshotBeforeEdit) {
       setPagesSnapshotBeforeEdit(JSON.parse(JSON.stringify(pages)));
+      setLayoutsSnapshotBeforeEdit(JSON.parse(JSON.stringify(layouts)));
     }
 
     let updatedRoot: ASTNode;
     if (target === "props") {
-      updatedRoot = updateProps(activePage.ast, node.id, { [key]: value });
+      updatedRoot = updateProps(containerInfo.root, node.id, { [key]: value });
     } else {
-      updatedRoot = updateStyles(activePage.ast, node.id, { [key]: value }, activeBreakpoint);
+      updatedRoot = updateStyles(containerInfo.root, node.id, { [key]: value }, activeBreakpoint);
     }
 
-    const nextPages = pages.map((p) =>
-      p.id === activePageId ? { ...p, ast: updatedRoot } : p
-    );
-
-    // Write straight to Zustand state (transient preview update)
-    setPages(nextPages);
+    if (containerInfo.target === "page") {
+      const nextPages = pages.map((p) =>
+        p.id === activePageId ? { ...p, ast: updatedRoot } : p
+      );
+      setPages(nextPages);
+    } else {
+      const updatedLayout = { ...activeLayout!, [`${containerInfo.target}AST`]: updatedRoot };
+      const nextLayouts = layouts.map((l) => l.id === activeLayout!.id ? updatedLayout : l);
+      setLayouts(nextLayouts);
+    }
   };
 
   // Commit change to history stack on blur (finishing typing)
@@ -123,9 +143,10 @@ export const Properties: React.FC = () => {
     /* eslint-disable-next-line @typescript-eslint/no-unused-vars */
     _target: "props" | "styles"
   ) => {
-    if (!pagesSnapshotBeforeEdit || !activePage) return;
+    if (!pagesSnapshotBeforeEdit || !layoutsSnapshotBeforeEdit || !activePage || !node) return;
 
     const currentPages = useEditorStore.getState().pages;
+    const currentLayouts = useEditorStore.getState().layouts;
 
     // Create custom command containing the snapshot from before typing began
     const command = {
@@ -133,41 +154,53 @@ export const Properties: React.FC = () => {
       execute: () => {
         useEditorStore.setState({
           pages: currentPages,
+          layouts: currentLayouts,
           selectedNodeIds: [node.id],
         });
       },
       undo: () => {
         useEditorStore.setState({
           pages: pagesSnapshotBeforeEdit,
+          layouts: layoutsSnapshotBeforeEdit,
           selectedNodeIds: [node.id],
         });
       },
     };
 
     executeCommand(command);
-    // Reset snapshot
+    // Reset snapshots
     setPagesSnapshotBeforeEdit(null);
+    setLayoutsSnapshotBeforeEdit(null);
   };
 
   // Direct commit for single-click inputs (Select, Color picker, Range slider)
   const handleDirectCommit = (key: string, value: any, target: "props" | "styles") => {
-    if (!activePage) return;
+    if (!activePage || !containerInfo || !node) return;
 
     let updatedRoot: ASTNode;
     if (target === "props") {
-      updatedRoot = updateProps(activePage.ast, node.id, { [key]: value });
+      updatedRoot = updateProps(containerInfo.root, node.id, { [key]: value });
     } else {
-      updatedRoot = updateStyles(activePage.ast, node.id, { [key]: value }, activeBreakpoint);
+      updatedRoot = updateStyles(containerInfo.root, node.id, { [key]: value }, activeBreakpoint);
     }
 
-    const nextPages = pages.map((p) =>
-      p.id === activePageId ? { ...p, ast: updatedRoot } : p
-    );
+    let nextPages = pages;
+    let nextLayouts = layouts;
+
+    if (containerInfo.target === "page") {
+      nextPages = pages.map((p) =>
+        p.id === activePageId ? { ...p, ast: updatedRoot } : p
+      );
+    } else {
+      const updatedLayout = { ...activeLayout!, [`${containerInfo.target}AST`]: updatedRoot };
+      nextLayouts = layouts.map((l) => l.id === activeLayout!.id ? updatedLayout : l);
+    }
 
     const command = createASTCommand(
       `Set ${node.type} ${key}`,
       nextPages,
-      [node.id]
+      [node.id],
+      nextLayouts
     );
 
     executeCommand(command);

@@ -1,13 +1,15 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { ASTNode, Breakpoint, Page, Command, Project } from "../types";
+import { ASTNode, Breakpoint, Page, Command, Project, Layout } from "../types";
 import { TEMPLATES } from "./templates";
 import { createDefaultRootNode } from "../utils/defaultRoot";
+import { createDefaultMainLayout } from "../utils/defaultLayout";
 
 interface EditorState {
   projects: Project[];
   activeProjectId: string;
   pages: Page[];
+  layouts: Layout[];
   activePageId: string;
   selectedNodeIds: string[];
   hoveredNodeId: string | null;
@@ -43,6 +45,7 @@ interface EditorActions {
 
   // State setters
   setPages: (pages: Page[] | ((prev: Page[]) => Page[])) => void;
+  setLayouts: (layouts: Layout[] | ((prev: Layout[]) => Layout[])) => void;
   setActivePageId: (id: string) => void;
   setSelectedNodeIds: (ids: string[]) => void;
   setHoveredNodeId: (id: string | null) => void;
@@ -81,8 +84,10 @@ const defaultProject: Project = {
       path: "/",
       ast: createDefaultRootNode(),
       stateSchema: [],
+      layoutId: "main-layout",
     },
   ],
+  layouts: [createDefaultMainLayout()],
   apis: [
     { name: "Login", url: "https://api.example.com/auth/login", method: "POST", body: '{"email": "{{state.form.login.email}}", "password": "{{state.form.login.password}}"}' },
     { name: "Get Products", url: "https://api.example.com/products", method: "GET" },
@@ -104,6 +109,7 @@ export const useEditorStore = create<EditorStore>()(
       projects: [defaultProject],
       activeProjectId: "default",
       pages: defaultProject.pages,
+      layouts: defaultProject.layouts || [createDefaultMainLayout()],
       activePageId: "home",
       selectedNodeIds: [],
       hoveredNodeId: null,
@@ -128,6 +134,7 @@ export const useEditorStore = create<EditorStore>()(
         
         // Deep copy pages & apis
         const pages = JSON.parse(JSON.stringify(templateData.pages)) as Page[];
+        const layouts = JSON.parse(JSON.stringify(templateData.layouts || [createDefaultMainLayout()])) as Layout[];
         const apis = JSON.parse(JSON.stringify(templateData.apis));
         const env = templateData.env || { NEXT_PUBLIC_API_URL: "https://api.example.com" };
         const theme = { primaryColor: "#2563eb" };
@@ -137,6 +144,7 @@ export const useEditorStore = create<EditorStore>()(
           name,
           template,
           pages,
+          layouts,
           apis,
           env,
           theme,
@@ -146,6 +154,7 @@ export const useEditorStore = create<EditorStore>()(
           projects: [...state.projects, newProj],
           activeProjectId: id,
           pages,
+          layouts,
           activePageId: pages[0]?.id || "home",
           apis,
           env,
@@ -163,6 +172,7 @@ export const useEditorStore = create<EditorStore>()(
         set({
           activeProjectId: id,
           pages: proj.pages,
+          layouts: proj.layouts || [createDefaultMainLayout()],
           activePageId: proj.pages[0]?.id || "home",
           apis: proj.apis,
           env: proj.env || {},
@@ -226,11 +236,15 @@ export const useEditorStore = create<EditorStore>()(
           // Ensure unique ID
           parsed.id = `project-${Math.random().toString(36).substr(2, 9)}`;
           parsed.name = `${parsed.name} (Imported)`;
+          if (!parsed.layouts || parsed.layouts.length === 0) {
+            parsed.layouts = [createDefaultMainLayout()];
+          }
 
           set((state) => ({
             projects: [...state.projects, parsed],
             activeProjectId: parsed.id,
             pages: parsed.pages,
+            layouts: parsed.layouts || [],
             activePageId: parsed.pages[0]?.id || "home",
             apis: parsed.apis || [],
             env: parsed.env || {},
@@ -283,6 +297,12 @@ export const useEditorStore = create<EditorStore>()(
           return { pages: nextPages };
         });
       },
+      setLayouts: (layouts) => {
+        set((state) => {
+          const nextLayouts = typeof layouts === "function" ? layouts(state.layouts) : layouts;
+          return { layouts: nextLayouts };
+        });
+      },
       setActivePageId: (id) => set({ activePageId: id, selectedNodeIds: [] }),
       setSelectedNodeIds: (ids) => set({ selectedNodeIds: ids }),
       setHoveredNodeId: (id) => set({ hoveredNodeId: id }),
@@ -307,8 +327,10 @@ export const useEditorStore = create<EditorStore>()(
               name: "Home",
               path: "/",
               ast: createDefaultRootNode(),
+              layoutId: "main-layout",
             },
           ],
+          layouts: [createDefaultMainLayout()],
           activePageId: "home",
           selectedNodeIds: [],
           hoveredNodeId: null,
@@ -381,6 +403,7 @@ export const useEditorStore = create<EditorStore>()(
         projects: state.projects,
         activeProjectId: state.activeProjectId,
         pages: state.pages,
+        layouts: state.layouts || [],
         activePageId: state.activePageId,
         zoom: state.zoom,
         pan: state.pan,
@@ -396,21 +419,23 @@ export const useEditorStore = create<EditorStore>()(
 
 // Global subscriber to synchronize pages, apis, env, and theme changes back into the projects array
 useEditorStore.subscribe((state) => {
-  const { projects, activeProjectId, pages, apis, env, theme } = state;
+  const { projects, activeProjectId, pages, layouts, apis, env, theme } = state;
   const activeProj = projects.find((p) => p.id === activeProjectId);
   if (activeProj) {
     const hasPagesChanged = activeProj.pages !== pages;
+    const hasLayoutsChanged = activeProj.layouts !== layouts;
     const hasApisChanged = activeProj.apis !== apis;
     const hasEnvChanged = JSON.stringify(activeProj.env) !== JSON.stringify(env);
     const hasThemeChanged = JSON.stringify(activeProj.theme) !== JSON.stringify(theme);
 
-    if (hasPagesChanged || hasApisChanged || hasEnvChanged || hasThemeChanged) {
+    if (hasPagesChanged || hasLayoutsChanged || hasApisChanged || hasEnvChanged || hasThemeChanged) {
       useEditorStore.setState((s) => ({
         projects: s.projects.map((p) =>
           p.id === activeProjectId
             ? {
                 ...p,
                 pages: hasPagesChanged ? pages : p.pages,
+                layouts: hasLayoutsChanged ? layouts : p.layouts || [],
                 apis: hasApisChanged ? apis : p.apis,
                 env: hasEnvChanged ? env : p.env,
                 theme: hasThemeChanged ? theme : p.theme,
@@ -426,12 +451,15 @@ useEditorStore.subscribe((state) => {
 export const createASTCommand = (
   name: string,
   newPages: Page[],
-  newSelectedNodeIds?: string[]
+  newSelectedNodeIds?: string[],
+  newLayouts?: Layout[]
 ): Command => {
   const store = useEditorStore.getState();
   const oldPages = store.pages;
   const oldSelectedNodeIds = store.selectedNodeIds;
+  const oldLayouts = store.layouts || [];
   const targetSelectedNodeIds = newSelectedNodeIds || oldSelectedNodeIds;
+  const targetLayouts = newLayouts || oldLayouts;
 
   return {
     name,
@@ -439,12 +467,14 @@ export const createASTCommand = (
       useEditorStore.setState({
         pages: newPages,
         selectedNodeIds: targetSelectedNodeIds,
+        layouts: targetLayouts,
       });
     },
     undo: () => {
       useEditorStore.setState({
         pages: oldPages,
         selectedNodeIds: oldSelectedNodeIds,
+        layouts: oldLayouts,
       });
     },
   };

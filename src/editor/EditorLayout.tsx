@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { DndContext, DragOverlay, DragStartEvent, DragEndEvent, useSensor, useSensors, PointerSensor } from "@dnd-kit/core";
 import { useEditorStore, createASTCommand } from "./store/useEditorStore";
 import { getComponent } from "./components/registry";
-import { insertNode, findNodeById, generateId, findParentAndIndex, removeNode, cloneASTNode, moveNode } from "./utils/ast";
+import { insertNode, findNodeById, generateId, findParentAndIndex, removeNode, cloneASTNode, moveNode, findNodeContainer } from "./utils/ast";
 import Sidebar, { getIconComponent } from "./sidebar/Sidebar";
 import Canvas from "./canvas/Canvas";
 import Properties from "./properties/Properties";
@@ -29,6 +29,8 @@ import { ProjectManager } from "./sidebar/ProjectManager";
 export const EditorLayout: React.FC = () => {
   const {
     pages,
+    layouts,
+    setLayouts,
     activePageId,
     selectedNodeIds,
     setSelectedNodeIds,
@@ -63,7 +65,7 @@ export const EditorLayout: React.FC = () => {
   const handleDelete = () => {
     if (selectedNodeIds.length === 0) return;
     const selectedId = selectedNodeIds[0];
-    if (selectedId === "root") {
+    if (selectedId === "root" || selectedId === "header-root" || selectedId === "sidebar-root" || selectedId === "footer-root") {
       message.warning("Cannot delete the root body container.");
       return;
     }
@@ -71,30 +73,60 @@ export const EditorLayout: React.FC = () => {
     const activePage = pages.find((p) => p.id === activePageId);
     if (!activePage) return;
 
-    const result = removeNode(activePage.ast, selectedId);
+    const activeLayout = layouts.find((l) => l.id === activePage.layoutId);
+    const containerInfo = findNodeContainer(activePage.ast, activeLayout || null, selectedId);
+    if (!containerInfo) return;
+
+    const result = removeNode(containerInfo.root, selectedId);
     if (result) {
       const { newRoot, deletedNode, parentId, index } = result;
-      const nextPages = pages.map((p) =>
-        p.id === activePageId ? { ...p, ast: newRoot } : p
-      );
+      
+      let nextPages = pages;
+      let nextLayouts = layouts;
+      if (containerInfo.target === "page") {
+        nextPages = pages.map((p) =>
+          p.id === activePageId ? { ...p, ast: newRoot } : p
+        );
+      } else {
+        const updatedLayout = { ...activeLayout!, [`${containerInfo.target}AST`]: newRoot };
+        nextLayouts = layouts.map((l) => l.id === activeLayout!.id ? updatedLayout : l);
+      }
 
       const command = {
         name: `Delete ${deletedNode.type}`,
         execute: () => {
           useEditorStore.setState({
             pages: nextPages,
+            layouts: nextLayouts,
             selectedNodeIds: [],
           });
         },
         undo: () => {
-          const restoredRoot = insertNode(activePage.ast, parentId, deletedNode, index);
-          const restoredPages = pages.map((p) =>
-            p.id === activePageId ? { ...p, ast: restoredRoot } : p
-          );
-          useEditorStore.setState({
-            pages: restoredPages,
-            selectedNodeIds: [selectedId],
-          });
+          // Re-insert into whichever AST it was deleted from
+          const latestPages = useEditorStore.getState().pages;
+          const latestLayouts = useEditorStore.getState().layouts || [];
+          const latestActivePage = latestPages.find((p) => p.id === activePageId);
+          const latestActiveLayout = latestLayouts.find((l) => l.id === activePage.layoutId);
+          
+          let restoredRoot: ASTNode;
+          if (containerInfo.target === "page") {
+            restoredRoot = insertNode(latestActivePage!.ast, parentId, deletedNode, index);
+            const restoredPages = latestPages.map((p) =>
+              p.id === activePageId ? { ...p, ast: restoredRoot } : p
+            );
+            useEditorStore.setState({
+              pages: restoredPages,
+              selectedNodeIds: [selectedId],
+            });
+          } else {
+            restoredRoot = insertNode(latestActiveLayout![`${containerInfo.target}AST`], parentId, deletedNode, index);
+            const restoredLayout = { ...latestActiveLayout!, [`${containerInfo.target}AST`]: restoredRoot };
+            const restoredLayouts = latestLayouts.map((l) => l.id === activeLayout!.id ? restoredLayout : l);
+            useEditorStore.setState({
+              layouts: restoredLayouts,
+              selectedNodeIds: [selectedId],
+            });
+          }
         },
       };
 
@@ -110,7 +142,11 @@ export const EditorLayout: React.FC = () => {
     const activePage = pages.find((p) => p.id === activePageId);
     if (!activePage) return;
 
-    const nodeToCopy = findNodeById(activePage.ast, selectedId);
+    const activeLayout = layouts.find((l) => l.id === activePage.layoutId);
+    const containerInfo = findNodeContainer(activePage.ast, activeLayout || null, selectedId);
+    if (!containerInfo) return;
+
+    const nodeToCopy = findNodeById(containerInfo.root, selectedId);
     if (!nodeToCopy) return;
 
     const clonedNode = cloneASTNode(nodeToCopy);
@@ -127,25 +163,36 @@ export const EditorLayout: React.FC = () => {
     const activePage = pages.find((p) => p.id === activePageId);
     if (!activePage) return;
 
+    const activeLayout = layouts.find((l) => l.id === activePage.layoutId);
+
     let targetParentId = "root";
     let pasteIndex: number | undefined = undefined;
+    let targetASTType: "page" | "header" | "sidebar" | "footer" = "page";
 
     if (selectedNodeIds.length > 0) {
       const selectedId = selectedNodeIds[0];
-      const selectedNode = findNodeById(activePage.ast, selectedId);
+      const containerInfo = findNodeContainer(activePage.ast, activeLayout || null, selectedId);
       
-      if (selectedNode) {
-        const def = getComponent(selectedNode.type);
-        if (def?.validator?.canAcceptChild && ["Container", "Row", "Column", "Flex", "Loading"].includes(selectedNode.type)) {
-          targetParentId = selectedId;
-        } else {
-          const parentInfo = findParentAndIndex(activePage.ast, selectedId);
-          if (parentInfo) {
-            targetParentId = parentInfo.parent.id;
-            pasteIndex = parentInfo.index + 1;
+      if (containerInfo) {
+        targetASTType = containerInfo.target;
+        const selectedNode = findNodeById(containerInfo.root, selectedId);
+        
+        if (selectedNode) {
+          const def = getComponent(selectedNode.type);
+          if (def?.validator?.canAcceptChild && ["Container", "Row", "Column", "Flex", "Loading"].includes(selectedNode.type)) {
+            targetParentId = selectedId;
+          } else {
+            const parentInfo = findParentAndIndex(containerInfo.root, selectedId);
+            if (parentInfo) {
+              targetParentId = parentInfo.parent.id;
+              pasteIndex = parentInfo.index + 1;
+            }
           }
         }
       }
+    } else {
+      // Default paste destination: check root container
+      targetParentId = targetASTType === "page" ? "root" : `${targetASTType}-root`;
     }
 
     const assignNewIds = (n: ASTNode): ASTNode => {
@@ -159,7 +206,13 @@ export const EditorLayout: React.FC = () => {
 
     const nodeToPaste = assignNewIds(clipboard[0]);
 
-    const targetParentNode = findNodeById(activePage.ast, targetParentId);
+    // Retrieve the target AST root based on targetASTType
+    let targetRootAST = activePage.ast;
+    if (targetASTType !== "page" && activeLayout) {
+      targetRootAST = activeLayout[`${targetASTType}AST`];
+    }
+
+    const targetParentNode = findNodeById(targetRootAST, targetParentId);
     if (!targetParentNode) return;
 
     const parentDef = getComponent(targetParentNode.type);
@@ -180,15 +233,24 @@ export const EditorLayout: React.FC = () => {
       return;
     }
 
-    const newRoot = insertNode(activePage.ast, targetParentId, nodeToPaste, pasteIndex);
-    const newPages = pages.map((p) =>
-      p.id === activePageId ? { ...p, ast: newRoot } : p
-    );
+    const newRoot = insertNode(targetRootAST, targetParentId, nodeToPaste, pasteIndex);
+    
+    let nextPages = pages;
+    let nextLayouts = layouts;
+    if (targetASTType === "page") {
+      nextPages = pages.map((p) =>
+        p.id === activePageId ? { ...p, ast: newRoot } : p
+      );
+    } else {
+      const updatedLayout = { ...activeLayout!, [`${targetASTType}AST`]: newRoot };
+      nextLayouts = layouts.map((l) => l.id === activeLayout!.id ? updatedLayout : l);
+    }
 
     const command = createASTCommand(
       `Paste ${nodeToPaste.type}`,
-      newPages,
-      [nodeToPaste.id]
+      nextPages,
+      [nodeToPaste.id],
+      nextLayouts
     );
 
     executeCommand(command);
@@ -265,23 +327,46 @@ export const EditorLayout: React.FC = () => {
     const activePage = pages.find((p) => p.id === activePageId);
     if (!activePage) return;
 
+    const activeLayout = layouts.find((l) => l.id === activePage.layoutId);
+
+    // Let's identify which AST contains targetId
+    let rootASTToSearch: ASTNode | null = null;
+    let astType: "page" | "header" | "sidebar" | "footer" = "page";
+
+    if (findNodeById(activePage.ast, targetId)) {
+      rootASTToSearch = activePage.ast;
+      astType = "page";
+    } else if (activeLayout) {
+      if (activeLayout.regions.header && findNodeById(activeLayout.headerAST, targetId)) {
+        rootASTToSearch = activeLayout.headerAST;
+        astType = "header";
+      } else if (activeLayout.regions.sidebar && findNodeById(activeLayout.sidebarAST, targetId)) {
+        rootASTToSearch = activeLayout.sidebarAST;
+        astType = "sidebar";
+      } else if (activeLayout.regions.footer && findNodeById(activeLayout.footerAST, targetId)) {
+        rootASTToSearch = activeLayout.footerAST;
+        astType = "footer";
+      }
+    }
+
+    if (!rootASTToSearch) return; // target not found in any active AST
+
     // Resolve the final target parent node and insertion index
-    // If the target is a leaf element, insert next to it inside its parent container
     let finalParentId = targetId;
     let targetIndex: number | undefined = undefined;
 
-    const targetNode = findNodeById(activePage.ast, targetId);
+    const targetNode = findNodeById(rootASTToSearch, targetId);
     if (!targetNode) return;
 
     const isLeafTarget = !["Container", "Row", "Column", "Flex", "Loading"].includes(targetNode.type);
-    const targetParentInfo = findParentAndIndex(activePage.ast, targetId);
+    const targetParentInfo = findParentAndIndex(rootASTToSearch, targetId);
 
     if (isLeafTarget && targetParentInfo) {
       finalParentId = targetParentInfo.parent.id;
       targetIndex = targetParentInfo.index;
     }
 
-    const parentNode = findNodeById(activePage.ast, finalParentId);
+    const parentNode = findNodeById(rootASTToSearch, finalParentId);
     if (!parentNode) {
       message.error("Target container not found.");
       return;
@@ -315,7 +400,7 @@ export const EditorLayout: React.FC = () => {
       }
 
       // Create new AST node
-      const newNode = {
+      const newNode: ASTNode = {
         id: `${componentType.toLowerCase()}-${generateId()}`,
         type: componentType,
         props: JSON.parse(JSON.stringify(componentDef.defaultProps)),
@@ -327,18 +412,29 @@ export const EditorLayout: React.FC = () => {
         children: ["Container", "Row", "Column", "Flex", "Loading"].includes(componentType) ? [] : undefined,
       };
 
-      const newRoot = insertNode(activePage.ast, finalParentId, newNode, targetIndex);
-      const newPages = pages.map((p) =>
-        p.id === activePageId ? { ...p, ast: newRoot } : p
-      );
+      const newRoot = insertNode(rootASTToSearch, finalParentId, newNode, targetIndex);
+      
+      let nextPages = pages;
+      let nextLayouts = layouts;
+      if (astType === "page") {
+        nextPages = pages.map((p) =>
+          p.id === activePageId ? { ...p, ast: newRoot } : p
+        );
+      } else {
+        const updatedLayout = { ...activeLayout!, [`${astType}AST`]: newRoot };
+        nextLayouts = layouts.map((l) => l.id === activeLayout!.id ? updatedLayout : l);
+      }
 
       executeCommand(
-        createASTCommand(`Add ${componentType}`, newPages, [newNode.id])
+        createASTCommand(`Add ${componentType}`, nextPages, [newNode.id], nextLayouts)
       );
       message.success(`Added ${componentType} component.`);
     } else {
-      // 2. Drag/Move/Reorder on the Canvas itself
-      const draggedNode = findNodeById(activePage.ast, activeIdStr);
+      // 2. Drag/Move/Reorder on the Canvas itself (including cross-AST support!)
+      const draggedContainer = findNodeContainer(activePage.ast, activeLayout || null, activeIdStr);
+      if (!draggedContainer) return;
+
+      const draggedNode = findNodeById(draggedContainer.root, activeIdStr);
       if (!draggedNode) return;
 
       // Prevent dropping onto itself or one of its descendants
@@ -373,25 +469,66 @@ export const EditorLayout: React.FC = () => {
         return;
       }
 
-      // If we move inside the same parent and insert at targetIndex,
-      // adjust targetIndex because detaching the node might shift the siblings' indices!
-      const currentParentInfo = findParentAndIndex(activePage.ast, activeIdStr);
-      if (
-        currentParentInfo &&
-        currentParentInfo.parent.id === finalParentId &&
-        targetIndex !== undefined &&
-        currentParentInfo.index < targetIndex
-      ) {
-        targetIndex = targetIndex - 1;
+      let nextPages = pages;
+      let nextLayouts = layouts;
+
+      if (draggedContainer.target === astType) {
+        // Move inside the same AST
+        let adjustedTargetIndex = targetIndex;
+        const currentParentInfo = findParentAndIndex(rootASTToSearch, activeIdStr);
+        if (
+          currentParentInfo &&
+          currentParentInfo.parent.id === finalParentId &&
+          adjustedTargetIndex !== undefined &&
+          currentParentInfo.index < adjustedTargetIndex
+        ) {
+          adjustedTargetIndex = adjustedTargetIndex - 1;
+        }
+
+        const newRoot = moveNode(rootASTToSearch, activeIdStr, finalParentId, adjustedTargetIndex);
+        
+        if (astType === "page") {
+          nextPages = pages.map((p) => p.id === activePageId ? { ...p, ast: newRoot } : p);
+        } else {
+          const updatedLayout = { ...activeLayout!, [`${astType}AST`]: newRoot };
+          nextLayouts = layouts.map((l) => l.id === activeLayout!.id ? updatedLayout : l);
+        }
+      } else {
+        // Cross-AST move!
+        const removeResult = removeNode(draggedContainer.root, activeIdStr);
+        if (removeResult) {
+          // Remove from source AST
+          if (draggedContainer.target === "page") {
+            nextPages = pages.map((p) => p.id === activePageId ? { ...p, ast: removeResult.newRoot } : p);
+          } else {
+            const updatedLayoutSource = { ...activeLayout!, [`${draggedContainer.target}AST`]: removeResult.newRoot };
+            nextLayouts = layouts.map((l) => l.id === activeLayout!.id ? updatedLayoutSource : l);
+          }
+
+          // Retrieve target root AST from current updated sets
+          let currentTargetRoot = rootASTToSearch;
+          if (astType !== "page") {
+            const latestLayout = nextLayouts.find((l) => l.id === activeLayout!.id);
+            currentTargetRoot = latestLayout![`${astType}AST`];
+          } else {
+            const latestPage = nextPages.find((p) => p.id === activePageId);
+            currentTargetRoot = latestPage!.ast;
+          }
+
+          // Insert into target AST
+          const updatedTargetRoot = insertNode(currentTargetRoot, finalParentId, removeResult.deletedNode, targetIndex);
+          if (astType === "page") {
+            nextPages = nextPages.map((p) => p.id === activePageId ? { ...p, ast: updatedTargetRoot } : p);
+          } else {
+            const latestLayout = nextLayouts.find((l) => l.id === activeLayout!.id);
+            const updatedLayoutTarget = { ...latestLayout!, [`${astType}AST`]: updatedTargetRoot };
+            nextLayouts = nextLayouts.map((l) => l.id === activeLayout!.id ? updatedLayoutTarget : l);
+          }
+        }
       }
 
-      const newRoot = moveNode(activePage.ast, activeIdStr, finalParentId, targetIndex);
-      const newPages = pages.map((p) =>
-        p.id === activePageId ? { ...p, ast: newRoot } : p
-      );
-
       executeCommand(
-        createASTCommand(`Move ${draggedNode.type}`, newPages, [activeIdStr])
+        createASTCommand(`Move ${draggedNode.type}`, nextPages, [activeIdStr], nextLayouts)
       );
       message.success(`Reordered ${draggedNode.type} component.`);
     }

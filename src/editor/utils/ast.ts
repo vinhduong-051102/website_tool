@@ -1,4 +1,31 @@
-import { ASTNode, Breakpoint } from "../types";
+import { ASTNode, Breakpoint, Layout } from "../types";
+
+export interface NodeContainerResult {
+  target: "page" | "header" | "sidebar" | "footer";
+  root: ASTNode;
+}
+
+export const findNodeContainer = (
+  pageAST: ASTNode,
+  layout: Layout | null,
+  nodeId: string
+): NodeContainerResult | null => {
+  if (findNodeById(pageAST, nodeId)) {
+    return { target: "page", root: pageAST };
+  }
+  if (layout) {
+    if (layout.regions.header && findNodeById(layout.headerAST, nodeId)) {
+      return { target: "header", root: layout.headerAST };
+    }
+    if (layout.regions.sidebar && findNodeById(layout.sidebarAST, nodeId)) {
+      return { target: "sidebar", root: layout.sidebarAST };
+    }
+    if (layout.regions.footer && findNodeById(layout.footerAST, nodeId)) {
+      return { target: "footer", root: layout.footerAST };
+    }
+  }
+  return null;
+};
 
 // Helper to generate unique IDs
 export const generateId = (): string => {

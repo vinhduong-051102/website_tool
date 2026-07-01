@@ -41,6 +41,7 @@ import {
   FileText
 } from "lucide-react";
 import { PageSidebarList } from "./PageSidebarList";
+import { LayoutSidebarList } from "./LayoutSidebarList";
 
 // Map string icon names to Lucide icon components
 export const getIconComponent = (iconName: string) => {
@@ -240,7 +241,14 @@ export const Sidebar: React.FC = () => {
         ) : activeTab === "structure" ? (
           <ComponentTree />
         ) : (
-          <PageSidebarList />
+          <div className="h-full flex flex-col divide-y divide-gray-800">
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <PageSidebarList />
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto">
+              <LayoutSidebarList />
+            </div>
+          </div>
         )}
       </div>
     </div>

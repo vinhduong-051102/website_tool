@@ -15,6 +15,7 @@ import {
 export const Canvas: React.FC = () => {
   const {
     pages,
+    layouts,
     activePageId,
     activeBreakpoint,
     zoom,
@@ -62,6 +63,7 @@ export const Canvas: React.FC = () => {
 
   const activePage = pages.find((p) => p.id === activePageId);
   const rootNode = activePage?.ast;
+  const activeLayout = layouts.find((l) => l.id === activePage?.layoutId);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     // Left-click on canvas background or middle-click anywhere clears selection or starts panning
@@ -262,7 +264,82 @@ export const Canvas: React.FC = () => {
             <div ref={viewportContentRef} className="flex-1 overflow-y-auto bg-gray-850 relative">
               {rootNode ? (
                 <>
-                  <ASTRenderer node={rootNode} />
+                  {activeLayout ? (
+                    <div 
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        minHeight: "100%",
+                        backgroundColor: activeLayout.config?.layoutBg || "#0f172a",
+                        gap: activeLayout.config?.layoutGap || "0px",
+                        padding: activeLayout.config?.layoutPadding || "0px",
+                      }}
+                    >
+                      {/* Header */}
+                      {activeLayout.regions.header && (
+                        <div 
+                          style={{
+                            height: activeLayout.config?.headerHeight || "64px",
+                            backgroundColor: activeLayout.config?.headerBg || "#1e293b",
+                            position: activeLayout.config?.headerFixed ? "sticky" : "static",
+                            top: 0,
+                            zIndex: 10,
+                          }}
+                        >
+                          <ASTRenderer node={activeLayout.headerAST} />
+                        </div>
+                      )}
+
+                      {/* Sidebar & Content area */}
+                      <div 
+                        style={{
+                          display: "flex",
+                          flexDirection: activeLayout.config?.sidebarPosition === "right" ? "row-reverse" : "row",
+                          flex: 1,
+                          gap: activeLayout.config?.layoutGap || "0px",
+                        }}
+                      >
+                        {/* Sidebar */}
+                        {activeLayout.regions.sidebar && (
+                          <div 
+                            style={{
+                              width: activeLayout.config?.sidebarCollapsed ? "64px" : (activeLayout.config?.sidebarWidth || "240px"),
+                              backgroundColor: activeLayout.config?.sidebarBg || "#1e293b",
+                              position: activeLayout.config?.sidebarFixed ? "sticky" : "static",
+                              left: activeLayout.config?.sidebarPosition === "left" && activeLayout.config?.sidebarFixed ? 0 : "auto",
+                              right: activeLayout.config?.sidebarPosition === "right" && activeLayout.config?.sidebarFixed ? 0 : "auto",
+                              zIndex: 9,
+                              transition: "width 0.2s ease-in-out",
+                            }}
+                          >
+                            <ASTRenderer node={activeLayout.sidebarAST} />
+                          </div>
+                        )}
+
+                        {/* Main Content (Slot) */}
+                        <div style={{ flex: 1, maxWidth: activeLayout.config?.layoutMaxWidth || "100%", margin: "0 auto", width: "100%" }}>
+                          <ASTRenderer node={rootNode} />
+                        </div>
+                      </div>
+
+                      {/* Footer */}
+                      {activeLayout.regions.footer && (
+                        <div 
+                          style={{
+                            height: activeLayout.config?.footerHeight || "48px",
+                            backgroundColor: activeLayout.config?.footerBg || "#1e293b",
+                            position: activeLayout.config?.footerFixed ? "sticky" : "static",
+                            bottom: 0,
+                            zIndex: 8,
+                          }}
+                        >
+                          <ASTRenderer node={activeLayout.footerAST} />
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <ASTRenderer node={rootNode} />
+                  )}
                   <VisualEditorOverlay zoom={zoom} contentRef={viewportContentRef} />
                 </>
               ) : (

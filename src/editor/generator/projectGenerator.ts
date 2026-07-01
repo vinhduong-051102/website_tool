@@ -471,7 +471,32 @@ export default function RootLayout({
 
     collectImports(page.ast);
 
+    // Resolve linked layout
+    const projectLayouts = project.layouts || [];
+    const layout = projectLayouts.find((l) => l.id === page.layoutId);
+    let wrappedBody = "";
+    let layoutImport = "";
+
+    if (layout) {
+      const cleanLayoutName = layout.name.replace(/[^a-zA-Z0-9]/g, "");
+      layoutImport = `import ${cleanLayoutName}Layout from '@/components/layouts/${layout.id}';\n`;
+      wrappedBody = `  return (
+    <${cleanLayoutName}Layout>
+      <div className="w-full h-full">
+        ${pageBodyCode.trim().split("\n").join("\n      ")}
+      </div>
+    </${cleanLayoutName}Layout>
+  );`;
+    } else {
+      wrappedBody = `  return (
+${pageBodyCode}
+  );`;
+    }
+
     let imports = `"use client";\n\nimport React, { useEffect } from 'react';\nimport { useGlobalState } from '@/store/useGlobalState';\nimport { useRouter } from 'next/navigation';\n`;
+    if (layoutImport) {
+      imports += layoutImport;
+    }
     if (checkLinkUsage(page.ast)) {
       imports += `import Link from 'next/link';\n`;
     }
@@ -495,9 +520,7 @@ export default function ${cleanName}Page() {
     useGlobalState.getState().initializeFromSchema(${JSON.stringify(schema, null, 2)});
   }, []);
 
-  ${eventHandlersCode ? eventHandlersCode + "\n\n" : ""}  return (
-${pageBodyCode}
-  );
+  ${eventHandlersCode ? eventHandlersCode + "\n\n" : ""}${wrappedBody}
 }
 `;
 
@@ -508,6 +531,171 @@ ${pageBodyCode}
       const cleanPath = page.path.replace(/^\/+|\/+$/g, ""); // strip / from start/end
       zip.folder(`src/app/${cleanPath}`)?.file("page.tsx", pageCode);
     }
+  });
+
+  // 14. Layouts generation
+  const projectLayouts = project.layouts || [];
+  projectLayouts.forEach((layout) => {
+    const antdImports = new Set<string>();
+    const iconImports = new Set<string>();
+
+    const collectImports = (node: ASTNode) => {
+      switch (node.type) {
+        case "TextInput":
+        case "PasswordInput":
+        case "EmailInput":
+        case "Textarea":
+        case "SearchInput":
+        case "PhoneInput":
+        case "URLInput":
+        case "OTPInput":
+          antdImports.add("Input");
+          break;
+        case "NumberInput":
+          antdImports.add("InputNumber");
+          break;
+        case "Checkbox":
+        case "CheckboxGroup":
+          antdImports.add("Checkbox");
+          break;
+        case "Radio":
+        case "RadioGroup":
+          antdImports.add("Radio");
+          break;
+        case "Select":
+        case "MultiSelect":
+          antdImports.add("Select");
+          break;
+        case "Switch":
+          antdImports.add("Switch");
+          break;
+        case "DatePicker":
+        case "DateTimePicker":
+        case "RangePicker":
+          antdImports.add("DatePicker");
+          break;
+        case "TimePicker":
+          antdImports.add("TimePicker");
+          break;
+        case "UploadFile":
+          antdImports.add("Upload");
+          antdImports.add("Button");
+          iconImports.add("UploadOutlined");
+          iconImports.add("InboxOutlined");
+          break;
+        case "UploadImage":
+        case "AvatarUpload":
+          antdImports.add("Upload");
+          iconImports.add("PlusOutlined");
+          break;
+        case "Slider":
+          antdImports.add("Slider");
+          break;
+        case "Rate":
+          antdImports.add("Rate");
+          break;
+        case "ColorPicker":
+          antdImports.add("ColorPicker");
+          break;
+      }
+      node.children?.forEach(collectImports);
+    };
+
+    if (layout.regions.header) collectImports(layout.headerAST);
+    if (layout.regions.sidebar) collectImports(layout.sidebarAST);
+    if (layout.regions.footer) collectImports(layout.footerAST);
+
+    let imports = `import React from 'react';\n`;
+    if (antdImports.size > 0) {
+      imports += `import { ${Array.from(antdImports).sort().join(", ")} } from 'antd';\n`;
+    }
+    if (iconImports.size > 0) {
+      imports += `import { ${Array.from(iconImports).sort().join(", ")} } from '@ant-design/icons';\n`;
+    }
+
+    const headerCode = layout.regions.header ? generateReactCode(layout.headerAST, 10) : "";
+    const sidebarCode = layout.regions.sidebar ? generateReactCode(layout.sidebarAST, 10) : "";
+    const footerCode = layout.regions.footer ? generateReactCode(layout.footerAST, 10) : "";
+
+    const headerSection = layout.regions.header ? `
+      <div 
+        style={{
+          height: "${layout.config?.headerHeight || '64px'}",
+          backgroundColor: "${layout.config?.headerBg || '#1e293b'}",
+          position: ${layout.config?.headerFixed ? '"sticky"' : '"static"'},
+          top: 0,
+          zIndex: 10,
+        }}
+      >
+${headerCode}
+      </div>` : "";
+
+    const sidebarSection = layout.regions.sidebar ? `
+        <div 
+          style={{
+            width: ${layout.config?.sidebarCollapsed ? '"64px"' : `"${layout.config?.sidebarWidth || '240px'}"`},
+            backgroundColor: "${layout.config?.sidebarBg || '#111827'}",
+            position: ${layout.config?.sidebarFixed ? '"sticky"' : '"static"'},
+            left: ${layout.config?.sidebarPosition === "left" && layout.config?.sidebarFixed ? 0 : "auto"},
+            right: ${layout.config?.sidebarPosition === "right" && layout.config?.sidebarFixed ? 0 : "auto"},
+            zIndex: 9,
+            transition: "width 0.2s ease-in-out",
+          }}
+        >
+${sidebarCode}
+        </div>` : "";
+
+    const footerSection = layout.regions.footer ? `
+      <div 
+        style={{
+          height: "${layout.config?.footerHeight || '48px'}",
+          backgroundColor: "${layout.config?.footerBg || '#1e293b'}",
+          position: ${layout.config?.footerFixed ? '"sticky"' : '"static"'},
+          bottom: 0,
+          zIndex: 8,
+        }}
+      >
+${footerCode}
+      </div>` : "";
+
+    const cleanLayoutName = layout.name.replace(/[^a-zA-Z0-9]/g, "");
+
+    const layoutCodeStr = `${imports}
+export default function ${cleanLayoutName}Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <div 
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100vh",
+        backgroundColor: "${layout.config?.layoutBg || '#0f172a'}",
+        gap: "${layout.config?.layoutGap || '0px'}",
+        padding: "${layout.config?.layoutPadding || '0px'}",
+      }}
+    >
+      ${headerSection}
+
+      <div 
+        style={{
+          display: "flex",
+          flexDirection: "${layout.config?.sidebarPosition === 'right' ? 'row-reverse' : 'row'}",
+          flex: 1,
+          gap: "${layout.config?.layoutGap || '0px'}",
+        }}
+      >
+        ${sidebarSection}
+
+        <div style={{ flex: 1, maxWidth: "${layout.config?.layoutMaxWidth || '100%'}", margin: "0 auto", width: "100%" }}>
+          {children}
+        </div>
+      </div>
+
+      ${footerSection}
+    </div>
+  );
+}
+`;
+    zip.folder("src/components/layouts")?.file(`${layout.id}.tsx`, layoutCodeStr);
   });
 
   return await zip.generateAsync({ type: "blob" });

@@ -64,6 +64,44 @@ export interface StateVariable {
   type: "string" | "number" | "boolean" | "object" | "array";
 }
 
+// ─── Layout ──────────────────────────────────────────────────────────
+
+export interface Layout {
+  id: string;
+  name: string;
+  regions: {
+    header: boolean;
+    sidebar: boolean;
+    footer: boolean;
+  };
+  config: {
+    headerHeight?: string;
+    headerFixed?: boolean;
+    headerBg?: string;
+    headerBorder?: string;
+    headerShadow?: string;
+
+    sidebarWidth?: string;
+    sidebarPosition?: "left" | "right";
+    sidebarCollapsed?: boolean;
+    sidebarBg?: string;
+    sidebarFixed?: boolean;
+    sidebarCollapsible?: boolean;
+
+    footerHeight?: string;
+    footerBg?: string;
+    footerFixed?: boolean;
+
+    layoutPadding?: string;
+    layoutGap?: string;
+    layoutBg?: string;
+    layoutMaxWidth?: string;
+  };
+  headerAST: ASTNode;
+  sidebarAST: ASTNode;
+  footerAST: ASTNode;
+}
+
 // ─── Page ────────────────────────────────────────────────────────────
 
 export interface Page {
@@ -72,6 +110,7 @@ export interface Page {
   path: string;
   ast: ASTNode;
   stateSchema?: StateVariable[];       // Per-page state declarations
+  layoutId?: string;                   // Linked layout ID
 }
 
 // ─── Project ─────────────────────────────────────────────────────────
@@ -81,6 +120,7 @@ export interface Project {
   name: string;
   template?: string;
   pages: Page[];
+  layouts?: Layout[];
   apis: { name: string; url: string; method: string; headers?: string; body?: string }[];
   env?: Record<string, string>;
   theme?: Record<string, unknown>;
