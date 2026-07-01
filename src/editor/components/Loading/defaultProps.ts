@@ -1,5 +1,6 @@
 export const defaultProps = {
-  visible: true,
+  loading: true,
+  visible: true, // For backwards compatibility
   loadingType: "Spinner", // Spinner, Dots, Circular, ProgressBar, Skeleton
   text: "Loading...",
   icon: "Loader2",
@@ -15,6 +16,8 @@ export const defaultProps = {
   borderRadius: "6px",
   padding: "16px",
   zIndex: "50",
+  delay: 0,
+  spinnerPosition: "center",
   // Skeleton config
   skeletonRows: 4,
   skeletonAvatar: true,

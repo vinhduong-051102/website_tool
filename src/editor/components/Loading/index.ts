@@ -11,10 +11,10 @@ export const LoadingComponent: BuilderComponent = {
   defaultStyles,
   propertySchema,
   validator: {
-    canAcceptChild: () => false, // Loading does not accept children
+    canAcceptChild: () => true, // Loading can now accept any child components
     canBeDroppedIn: () => true,
   },
-  supportedEvents: [],
+  supportedEvents: ["onClick"],
   renderer: Renderer,
   codeGenerator,
 };

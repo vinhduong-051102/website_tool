@@ -3,6 +3,6 @@ import { ComponentMetadata } from "../types";
 export const metadata: ComponentMetadata = {
   type: "Loading",
   name: "Loading",
-  category: "Basic",
+  category: "Layout",
   icon: "Loader2",
 };

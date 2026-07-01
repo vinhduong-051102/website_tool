@@ -8,7 +8,7 @@ export const codeGenerator = (
   const tailwindClasses = breakpointStylesCode || "";
   
   // Extract props with defaults
-  const visible = node.props.visible !== false;
+  const loading = node.props.loading !== undefined ? node.props.loading !== false : node.props.visible !== false;
   const loadingType = (node.props.loadingType as string) || "Spinner";
   const text = node.props.text !== undefined ? String(node.props.text) : "Loading...";
   const fullScreen = !!node.props.fullScreen;
@@ -23,6 +23,8 @@ export const codeGenerator = (
   const borderRadius = (node.props.borderRadius as string) || "6px";
   const padding = (node.props.padding as string) || "16px";
   const zIndex = (node.props.zIndex as string) || "50";
+  const delay = Number(node.props.delay) || 0;
+  const spinnerPosition = (node.props.spinnerPosition as string) || "center";
 
   // Skeleton specific props
   const skeletonType = (node.props.skeletonType as string) || "default";
@@ -35,13 +37,39 @@ export const codeGenerator = (
   if (size === "small") sizePx = 24;
   if (size === "large") sizePx = 64;
 
-  // Build styling objects
-  let stylesStr = `opacity: ${opacity}, zIndex: ${zIndex}, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "12px", padding: "${padding}", borderRadius: "${borderRadius}"`;
+  const hasChildren = !!childrenCode && childrenCode.trim().length > 0;
+
+  // Spinner position layout rules
+  let alignmentStylesStr = `display: "flex", gap: "12px"`;
+  switch (spinnerPosition) {
+    case "top":
+      alignmentStylesStr += `, flexDirection: "column", alignItems: "center", justifyContent: "flex-start"`;
+      break;
+    case "bottom":
+      alignmentStylesStr += `, flexDirection: "column", alignItems: "center", justifyContent: "flex-end"`;
+      break;
+    case "left":
+      alignmentStylesStr += `, flexDirection: "row", alignItems: "center", justifyContent: "center"`;
+      break;
+    case "right":
+      alignmentStylesStr += `, flexDirection: "row-reverse", alignItems: "center", justifyContent: "center"`;
+      break;
+    case "center":
+    default:
+      alignmentStylesStr += `, flexDirection: "column", alignItems: "center", justifyContent: "center"`;
+      break;
+  }
+
+  // Base wrapper styles (if there are children, wrapper is relative)
+  const wrapperStyleStr = `position: "relative", width: "100%", display: "block"`;
+
+  // Overlay styles
+  let overlayStyleStr = `${alignmentStylesStr}, opacity: ${opacity}, zIndex: ${zIndex}, padding: "${padding}", borderRadius: "${borderRadius}"`;
   
   if (fullScreen) {
-    stylesStr = `position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "${backgroundColor}", pointerEvents: "${blockInteraction ? "all" : "none"}", backdropFilter: "${blurBackground ? "blur(4px)" : "none"}", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: ${zIndex}`;
-  } else if (overlay) {
-    stylesStr = `position: "absolute", top: 0, left: 0, width: "100%", height: "100%", backgroundColor: "${backgroundColor}", borderRadius: "${borderRadius}", pointerEvents: "${blockInteraction ? "all" : "none"}", backdropFilter: "${blurBackground ? "blur(4px)" : "none"}", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: ${zIndex}`;
+    overlayStyleStr = `${alignmentStylesStr}, position: "fixed", top: 0, left: 0, width: "100vw", height: "100vh", backgroundColor: "${backgroundColor}", pointerEvents: "${blockInteraction ? "all" : "none"}", backdropFilter: "${blurBackground ? "blur(4px)" : "none"}", zIndex: ${zIndex}`;
+  } else if (overlay || hasChildren) {
+    overlayStyleStr = `${alignmentStylesStr}, position: "absolute", top: 0, left: 0, right: 0, bottom: 0, width: "100%", height: "100%", backgroundColor: "${backgroundColor}", borderRadius: "${borderRadius}", pointerEvents: "${blockInteraction ? "all" : "none"}", backdropFilter: "${blurBackground ? "blur(4px)" : "none"}", zIndex: ${zIndex}`;
   }
 
   // Animation class
@@ -132,20 +160,23 @@ export const codeGenerator = (
 
   const labelTextJSX = loadingType !== "Skeleton" && text ? `
     <span style={{
-      color: ${fullScreen || overlay ? '"#ffffff"' : `"${color}"`},
+      color: ${fullScreen || overlay || hasChildren ? '"#ffffff"' : `"${color}"`},
       fontSize: "${size === "small" ? "12px" : size === "large" ? "18px" : "14px"}",
       fontWeight: "500",
-      textShadow: ${fullScreen || overlay ? '"0 1px 2px rgba(0,0,0,0.5)"' : '"none"'}
+      textShadow: ${fullScreen || overlay || hasChildren ? '"0 1px 2px rgba(0,0,0,0.5)"' : '"none"'}
     }}>${text}</span>
   ` : "";
 
+  // The outer wrapper binds `loading` and `visible` attributes.
+  // The CSS rule hides `.loading-overlay` when [loading="false"] or [visible="false"].
   return `<div
-  visible={${visible ? "true" : "false"}}
-  className="${tailwindClasses}${animationClass}"
-  style={{ ${stylesStr} }}
+  loading={${loading ? "true" : "false"}}
+  visible={${loading ? "true" : "false"}}
+  className="${tailwindClasses}"
+  style={{ ${wrapperStyleStr} }}
 >
   <style>{\`
-    [visible="false"] { display: none !important; }
+    [loading="false"] .loading-overlay, [visible="false"] .loading-overlay { display: none !important; }
     @keyframes loading-rotate { 100% { transform: rotate(360deg); } }
     @keyframes loading-dash {
       0% { stroke-dasharray: 1, 200; stroke-dashoffset: 0; }
@@ -156,8 +187,20 @@ export const codeGenerator = (
     @keyframes loading-progress { 0% { left: -40%; } 50% { left: 100%; } 100% { left: 100%; } }
     @keyframes loading-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
   \`}</style>
-  ${graphicsJSX.trim()}
-  ${labelTextJSX.trim()}
+
+  ${childrenCode.trim()}
+
+  <div
+    className="loading-overlay${animationClass}"
+    style={{
+      ${overlayStyleStr},
+      transition: "opacity 0.3s ease",
+      ${delay > 0 ? `transitionDelay: "${delay}ms"` : ""}
+    }}
+  >
+    ${graphicsJSX.trim()}
+    ${labelTextJSX.trim()}
+  </div>
 </div>`;
 };
 
