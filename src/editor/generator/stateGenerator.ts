@@ -385,7 +385,7 @@ export const postProcessNodeCode = (node: ASTNode, baseCode: string): string => 
         const attrName = evt.event; // e.g. onClick
 
         // Insert into the root opening tag
-        const tagRegex = /^(\s*<[a-zA-Z0-9\-]+)([^>]*)(>)/;
+        const tagRegex = /^(\s*<[a-zA-Z0-9.\-_:]+)([\s\S]*?)(\/?>)/;
         const match = processed.match(tagRegex);
         if (match) {
           const opening = match[1];
@@ -398,10 +398,12 @@ export const postProcessNodeCode = (node: ASTNode, baseCode: string): string => 
           if (attrRegex.test(attrs)) {
             newAttrs = attrs.replace(attrRegex, `${attrName}={${handlerName}}`);
           } else {
-            newAttrs = attrs + ` ${attrName}={${handlerName}}`;
+            const trimmedAttrs = attrs.trimEnd();
+            newAttrs = trimmedAttrs + ` ${attrName}={${handlerName}}`;
           }
 
-          processed = processed.replace(tagRegex, `${opening}${newAttrs}${closing}`);
+          const finalClosing = closing === "/>" && !newAttrs.endsWith(" ") ? " />" : closing;
+          processed = processed.replace(tagRegex, `${opening}${newAttrs}${finalClosing}`);
         }
       }
     });
@@ -415,7 +417,7 @@ export const postProcessNodeCode = (node: ASTNode, baseCode: string): string => 
       if (binding.prop === "text") {
         // Replace inner content between opening and closing tag of the root element
         // e.g. <span ...>Hello</span> -> <span ...>{state.path}</span>
-        const innerRegex = /^(\s*<[a-zA-Z0-9\-]+[^>]*>)([\s\S]*)(<\/[a-zA-Z0-9\-]+>\s*)$/;
+        const innerRegex = /^(\s*<[a-zA-Z0-9.\-_:]+[^>]*>)([\s\S]*)(<\/[a-zA-Z0-9.\-_:]+>\s*)$/;
         const match = processed.match(innerRegex);
         if (match) {
           const opening = match[1];
@@ -425,7 +427,7 @@ export const postProcessNodeCode = (node: ASTNode, baseCode: string): string => 
       } else {
         // Tag attribute binding (e.g. href, src, placeholder, disabled)
         const attrName = binding.prop;
-        const tagRegex = /^(\s*<[a-zA-Z0-9\-]+)([^>]*)(>)/;
+        const tagRegex = /^(\s*<[a-zA-Z0-9.\-_:]+)([\s\S]*?)(\/?>)/;
         const match = processed.match(tagRegex);
         if (match) {
           const opening = match[1];
@@ -437,10 +439,12 @@ export const postProcessNodeCode = (node: ASTNode, baseCode: string): string => 
           if (attrRegex.test(attrs)) {
             newAttrs = attrs.replace(attrRegex, `${attrName}={${expr}}`);
           } else {
-            newAttrs = attrs + ` ${attrName}={${expr}}`;
+            const trimmedAttrs = attrs.trimEnd();
+            newAttrs = trimmedAttrs + ` ${attrName}={${expr}}`;
           }
 
-          processed = processed.replace(tagRegex, `${opening}${newAttrs}${closing}`);
+          const finalClosing = closing === "/>" && !newAttrs.endsWith(" ") ? " />" : closing;
+          processed = processed.replace(tagRegex, `${opening}${newAttrs}${finalClosing}`);
         }
       }
     });
