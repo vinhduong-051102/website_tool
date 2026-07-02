@@ -37,7 +37,7 @@ export const Renderer = ({
     <div className={outlineClasses} style={{ display: node.props.type === "vertical" ? "inline-block" : "block" }}>
       <Divider
         type={node.props.type as any}
-        orientation={node.props.orientation as any}
+        titlePlacement={node.props.orientation as any}
         dashed={Boolean(node.props.dashed)}
         plain={Boolean(node.props.plain)}
         style={{

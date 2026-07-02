@@ -26,51 +26,261 @@ body {
 }
 
 /* Ant Design Dark Modal Customizations */
-.dark-theme-modal .ant-modal-content {
+.ant-modal-content {
+  background-color: #111827 !important;
+  border: none !important;
+  outline: none !important;
+  border-radius: 16px !important;
+  color: #e5e7eb !important;
+  padding: 0 !important;
+  /* Reset default padding to control sub-element spacing */
+  overflow: hidden !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6) !important;
+}
+
+.ant-modal-header {
+  background-color: #111827 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  margin: 0 !important;
+  padding: 18px 24px !important;
+}
+
+.ant-modal-title {
+  color: #f9fafb !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.ant-modal-body {
+  padding: 24px !important;
+  background-color: #111827 !important;
+}
+
+.ant-modal-container {
+  padding: 0 !important;
+}
+
+.ant-modal-footer {
+  background-color: #111827 !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+  margin: 0 !important;
+  padding: 16px 24px !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 12px !important;
+}
+
+.ant-modal-close {
+  color: #9ca3af !important;
+  top: 18px !important;
+  right: 18px !important;
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease-in-out !important;
+}
+
+.ant-modal-close:hover {
+  color: #ffffff !important;
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.ant-modal-close-x {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  font-size: 14px !important;
+}
+
+.ant-modal-mask {
+  background-color: rgba(0, 0, 0, 0.65) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+/* Ant Design Input & Form customizations within Modals for unified Design System */
+.ant-modal-wrap .ant-form-item-label>label {
+  color: #d1d5db !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+
+.ant-modal-wrap .ant-form-item {
+  margin-bottom: 16px !important;
+}
+
+.ant-modal-wrap .ant-form-item:last-child {
+  margin-bottom: 0 !important;
+}
+
+.ant-modal-wrap .ant-form-item-label {
+  padding-bottom: 8px !important;
+}
+
+.ant-modal-wrap .ant-input,
+.ant-modal-wrap .ant-input-affix-wrapper,
+.ant-modal-wrap .ant-select-selector,
+.ant-modal-wrap .ant-input-number {
   background-color: #1f2937 !important;
   border: 1px solid #374151 !important;
-  border-radius: 12px !important;
+  border-radius: 8px !important;
   color: #f3f4f6 !important;
-  padding: 0 !important; /* Reset default padding to control sub-element spacing */
-  overflow: hidden !important;
-  box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.5), 0 8px 10px -6px rgb(0 0 0 / 0.5) !important;
+  font-size: 13px !important;
+  padding: 6px 12px !important;
+  height: 38px !important;
+  transition: all 0.2s ease !important;
 }
 
-.dark-theme-modal .ant-modal-header {
-  background-color: #111827 !important; /* Dark header background */
-  border-bottom: 1px solid #374151 !important;
-  margin: 0 !important;
-  padding: 16px 24px !important;
+.ant-modal-wrap .ant-input-affix-wrapper .ant-input {
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  height: auto !important;
 }
 
-.dark-theme-modal .ant-modal-body {
-  padding: 24px !important;
+.ant-modal-wrap .ant-input-textarea .ant-input,
+.ant-modal-wrap .ant-input-textarea {
+  height: auto !important;
+  min-height: 38px !important;
+}
+
+.ant-modal-wrap .ant-select-selector {
+  padding: 3px 12px !important;
+}
+
+.ant-modal-wrap .ant-input:hover,
+.ant-modal-wrap .ant-input-affix-wrapper:hover,
+.ant-modal-wrap .ant-select-selector:hover,
+.ant-modal-wrap .ant-input-number:hover {
+  border-color: #4b5563 !important;
+}
+
+.ant-modal-wrap .ant-input:focus,
+.ant-modal-wrap .ant-input-focused,
+.ant-modal-wrap .ant-input-affix-wrapper-focused,
+.ant-modal-wrap .ant-select-focused .ant-select-selector,
+.ant-modal-wrap .ant-input-number-focused {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25) !important;
+  outline: none !important;
+}
+
+.ant-modal-wrap input::placeholder,
+.ant-modal-wrap textarea::placeholder {
+  color: #6b7280 !important;
+}
+
+/* Footer buttons sizing & styles */
+.ant-modal-footer .ant-btn,
+.ant-modal-footer button {
+  height: 38px !important;
+  padding: 0 16px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  transition: all 0.2s ease !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+}
+
+.ant-modal-footer .ant-btn-default,
+.ant-modal-footer button:not(.ant-btn-primary):not([type="primary"]) {
   background-color: #1f2937 !important;
+  border: 1px solid #374151 !important;
+  color: #d1d5db !important;
 }
 
-.dark-theme-modal .ant-modal-footer {
-  background-color: #111827 !important; /* Dark footer background */
-  border-top: 1px solid #374151 !important;
-  margin: 0 !important;
-  padding: 16px 24px !important;
-}
-
-.dark-theme-modal .ant-modal-close {
-  color: #9ca3af !important;
-  top: 16px !important;
-  right: 20px !important;
-}
-
-.dark-theme-modal .ant-modal-close:hover {
+.ant-modal-footer .ant-btn-default:hover,
+.ant-modal-footer button:not(.ant-btn-primary):not([type="primary"]):hover {
+  background-color: #374151 !important;
+  border-color: #4b5563 !important;
   color: #ffffff !important;
+}
+
+.ant-modal-footer .ant-btn-primary,
+.ant-modal-footer button.ant-btn-primary,
+.ant-modal-footer button[type="submit"] {
+  background-color: #2563eb !important;
+  border: none !important;
+  color: #ffffff !important;
+}
+
+.ant-modal-footer .ant-btn-primary:hover,
+.ant-modal-footer button.ant-btn-primary:hover,
+.ant-modal-footer button[type="submit"]:hover {
+  background-color: #3b82f6 !important;
+}
+
+/* Ant Design Confirm / Popconfirm Modals customization */
+.ant-modal-confirm .ant-modal-content {
+  padding: 24px !important;
+  background-color: #111827 !important;
+  border-radius: 16px !important;
+}
+
+.ant-modal-confirm-title {
+  color: #f9fafb !important;
+  font-size: 15px !important;
+  font-weight: 600 !important;
+}
+
+.ant-modal-confirm-content {
+  color: #d1d5db !important;
+  font-size: 13px !important;
+  margin-top: 8px !important;
+}
+
+.ant-modal-confirm-btns {
+  margin-top: 24px !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  gap: 12px !important;
+}
+
+.ant-modal-confirm-btns button {
+  height: 38px !important;
+  padding: 0 16px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+}
+
+/* Ant Design Select Dropdown unified style */
+.ant-select-dropdown {
+  background-color: #1f2937 !important;
+  border: 1px solid #374151 !important;
+  border-radius: 8px !important;
+  padding: 4px !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5) !important;
+}
+
+.ant-select-item {
+  color: #d1d5db !important;
+  border-radius: 6px !important;
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+}
+
+.ant-select-item-option-active {
   background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #ffffff !important;
+}
+
+.ant-select-item-option-selected {
+  background-color: #2563eb !important;
+  color: #ffffff !important;
 }
 
 /* Semi-transparent ghost preview when dragging elements */
-[data-dragging="true"] > * {
+[data-dragging="true"]>* {
   opacity: 0.35 !important;
   pointer-events: none !important;
 }
-
-
-

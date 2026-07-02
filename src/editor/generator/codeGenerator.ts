@@ -1,10 +1,10 @@
 import { ASTNode, Page, StateVariable } from "../types";
 import { getComponent } from "../components/registry";
 import { getResponsiveTailwindClasses } from "../utils/tailwind";
-import { 
-  postProcessNodeCode, 
-  buildInitialStateCode, 
-  generateAllEventHandlers 
+import {
+  postProcessNodeCode,
+  buildInitialStateCode,
+  generateAllEventHandlers
 } from "./stateGenerator";
 import { useEditorStore } from "../store/useEditorStore";
 
@@ -23,11 +23,11 @@ export const wrapWithNextJsLink = (node: ASTNode, code: string, pages: Page[]): 
   let hrefStr = targetPage.path;
   let routeParams: Record<string, any> = {};
   if (typeof linkRouteParams === "string") {
-    try { routeParams = JSON.parse(linkRouteParams); } catch {}
+    try { routeParams = JSON.parse(linkRouteParams); } catch { }
   }
   let queryParams: Record<string, any> = {};
   if (typeof linkQueryParams === "string") {
-    try { queryParams = JSON.parse(linkQueryParams); } catch {}
+    try { queryParams = JSON.parse(linkQueryParams); } catch { }
   }
 
   const convertExpression = (val: string): string => {
@@ -305,7 +305,7 @@ export const generatePageCode = (
 
   if (options.isExport) {
     const hasLocalVars = stateSchema.length > 0;
-    importStatements += `"use client";\n\nimport React, { useEffect${hasLocalVars ? ", useState" : ""} } from 'react';\nimport { useGlobalState } from '@/store/useGlobalState';\nimport { useRouter } from 'next/navigation';\n`;
+    importStatements += `"use client";\n\nimport React, { useEffect, useState } from 'react';\nimport { useGlobalState } from '@/store/useGlobalState';\nimport { useRouter } from 'next/navigation';\n`;
     if (options.layoutId && options.projectLayouts) {
       const layout = options.projectLayouts.find((l) => l.id === options.layoutId);
       if (layout) {
@@ -352,7 +352,7 @@ ${pageBodyCode}
 
   if (options.isExport) {
     const pageStateInterface = generateStateInterface(stateSchema);
-    
+
     componentBody = `${pageStateInterface}
 
 export default function ${cleanName}Page() {
@@ -426,7 +426,7 @@ export const generateFullPageCode = (
   stateSchema: StateVariable[] = []
 ): string => {
   const globalVars = useEditorStore.getState().globalVariables || [];
-  return generatePageCode(rootNode, pageName, stateSchema, { 
+  return generatePageCode(rootNode, pageName, stateSchema, {
     isExport: false,
     globalVariables: globalVars
   });
@@ -450,7 +450,7 @@ export const generateStateInterface = (schema: StateVariable[]): string => {
       }
       current = current[key];
     }
-    
+
     // Map state schema types to typescript types
     let tsType = "any";
     if (v.type === "string") tsType = "string";
@@ -556,7 +556,7 @@ export const postProcessCodeChecks = (code: string): string => {
     });
   }
 
-  const missingAntdItems = Array.from(tagsUsed).filter(tag => 
+  const missingAntdItems = Array.from(tagsUsed).filter(tag =>
     standardAntdComponents.includes(tag) && !existingAntdItems.has(tag)
   );
 
@@ -585,7 +585,7 @@ export const postProcessCodeChecks = (code: string): string => {
   }
 
   // Scan code for icon names
-  const missingIconItems = standardIcons.filter(icon => 
+  const missingIconItems = standardIcons.filter(icon =>
     new RegExp(`\\b${icon}\\b`).test(processed) && !existingIconItems.has(icon)
   );
 
