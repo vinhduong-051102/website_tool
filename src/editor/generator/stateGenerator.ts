@@ -229,7 +229,8 @@ export const generateEventHandlerCode = (node: ASTNode, eventConfig: EventConfig
         const path = action.params.path as string;
         const valueSource = (action.params.valueSource as string) || "event";
         if (valueSource === "event") {
-          actionCode += `    updateState("${path}", e);\n`;
+          const decl = getEventParamDeclaration(node.type, eventConfig.event);
+          actionCode += `    updateState("${path}", ${decl.valExpression});\n`;
         } else if (valueSource === "state") {
           const sourcePath = action.params.sourceStatePath as string;
           const parts = (sourcePath || "").split(".");
@@ -500,7 +501,17 @@ export const generateEventHandlerCode = (node: ASTNode, eventConfig: EventConfig
     body += `    // Action: ${action.type}\n` + actionCode + `\n`;
   });
 
-  return `  const ${handlerName} = async (e: any) => {\n${body}  };`;
+  const isAsync = hasAwaitAction(eventConfig);
+  const asyncKeyword = isAsync ? "async " : "";
+
+  const isParamUsed = isEventParamUsed(eventConfig);
+  let paramStr = "";
+  if (isParamUsed) {
+    const decl = getEventParamDeclaration(node.type, eventConfig.event);
+    paramStr = decl.rawParams || `${decl.paramName}: ${decl.paramType}`;
+  }
+
+  return `  const ${handlerName} = ${asyncKeyword}(${paramStr}) => {\n${body}  };`;
 };
 
 // Traverse AST to collect all event handlers
@@ -559,7 +570,7 @@ export const postProcessNodeCode = (node: ASTNode, baseCode: string): string => 
   // 2. Process Data Bindings (Attributes and text contents)
   if (node.bindings && node.bindings.length > 0) {
     node.bindings.forEach((binding) => {
-      const expr = getBindingExpression(binding);
+      const expr = getBindingExpression(binding, node);
 
       if (binding.prop === "text") {
         // Replace inner content between opening and closing tag of the root element

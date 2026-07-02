@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 import { Project, Page, ASTNode } from "../types";
-import { generateReactCode } from "./codeGenerator";
+import { generateReactCode, generatePageCode } from "./codeGenerator";
 import { generateAllEventHandlers } from "./stateGenerator";
 
 // Scans all pages to see if Ant Design components are used
@@ -394,163 +394,11 @@ export default function RootLayout({
 
   // 13. Pages generation
   project.pages.forEach((page) => {
-    const pageBodyCode = generateReactCode(page.ast, 4);
-    const schema = page.stateSchema || [];
-
-    // Collect and generate event handlers
-    const handlers = generateAllEventHandlers(page.ast);
-    const eventHandlersCode = handlers
-      .map((code) => {
-        // Rewrite updateState and state references to use our Zustand hook helper
-        return code;
-      })
-      .join("\n\n");
-
-    const antdImports = new Set<string>();
-    const iconImports = new Set<string>();
-
-    const collectImports = (node: ASTNode) => {
-      switch (node.type) {
-        case "TextInput":
-        case "PasswordInput":
-        case "EmailInput":
-        case "Textarea":
-        case "SearchInput":
-        case "PhoneInput":
-        case "URLInput":
-        case "OTPInput":
-          antdImports.add("Input");
-          break;
-        case "NumberInput":
-          antdImports.add("InputNumber");
-          break;
-        case "Checkbox":
-        case "CheckboxGroup":
-          antdImports.add("Checkbox");
-          break;
-        case "Radio":
-        case "RadioGroup":
-          antdImports.add("Radio");
-          break;
-        case "Select":
-        case "MultiSelect":
-          antdImports.add("Select");
-          break;
-        case "Switch":
-          antdImports.add("Switch");
-          break;
-        case "DatePicker":
-        case "DateTimePicker":
-        case "RangePicker":
-          antdImports.add("DatePicker");
-          break;
-        case "TimePicker":
-          antdImports.add("TimePicker");
-          break;
-        case "UploadFile":
-          antdImports.add("Upload");
-          antdImports.add("Button");
-          iconImports.add("UploadOutlined");
-          iconImports.add("InboxOutlined");
-          break;
-        case "UploadImage":
-        case "AvatarUpload":
-          antdImports.add("Upload");
-          iconImports.add("PlusOutlined");
-          break;
-        case "Slider":
-          antdImports.add("Slider");
-          break;
-        case "Rate":
-          antdImports.add("Rate");
-          break;
-        case "ColorPicker":
-          antdImports.add("ColorPicker");
-          break;
-        case "Flex":
-        case "Container":
-          antdImports.add("Flex");
-          break;
-        case "Row":
-          antdImports.add("Row");
-          break;
-        case "Column":
-          antdImports.add("Col");
-          break;
-        case "Layout":
-        case "Header":
-        case "Sidebar":
-        case "Content":
-        case "Footer":
-          antdImports.add("Layout");
-          break;
-        case "Space":
-          antdImports.add("Space");
-          break;
-        case "Divider":
-          antdImports.add("Divider");
-          break;
-        case "Card":
-          antdImports.add("Card");
-          break;
-      }
-      node.children?.forEach(collectImports);
-    };
-
-    collectImports(page.ast);
-
-    // Resolve linked layout
-    const projectLayouts = project.layouts || [];
-    const layout = projectLayouts.find((l) => l.id === page.layoutId);
-    let wrappedBody = "";
-    let layoutImport = "";
-
-    if (layout) {
-      const cleanLayoutName = layout.name.replace(/[^a-zA-Z0-9]/g, "");
-      layoutImport = `import ${cleanLayoutName}Layout from '@/components/layouts/${layout.id}';\n`;
-      wrappedBody = `  return (
-    <${cleanLayoutName}Layout>
-      <div className="w-full h-full">
-        ${pageBodyCode.trim().split("\n").join("\n      ")}
-      </div>
-    </${cleanLayoutName}Layout>
-  );`;
-    } else {
-      wrappedBody = `  return (
-${pageBodyCode}
-  );`;
-    }
-
-    let imports = `"use client";\n\nimport React, { useEffect } from 'react';\nimport { useGlobalState } from '@/store/useGlobalState';\nimport { useRouter } from 'next/navigation';\n`;
-    if (layoutImport) {
-      imports += layoutImport;
-    }
-    if (checkLinkUsage(page.ast)) {
-      imports += `import Link from 'next/link';\n`;
-    }
-    if (antdImports.size > 0) {
-      imports += `import { ${Array.from(antdImports).sort().join(", ")} } from 'antd';\n`;
-    }
-    if (iconImports.size > 0) {
-      imports += `import { ${Array.from(iconImports).sort().join(", ")} } from '@ant-design/icons';\n`;
-    }
-
-    const cleanName = page.name.replace(/[^a-zA-Z0-9]/g, "");
-
-    const pageCode = `${imports}
-export default function ${cleanName}Page() {
-  const state = useGlobalState((s) => s.data);
-  const updateState = useGlobalState((s) => s.setState);
-  const router = useRouter();
-
-  // Initialize page-specific state schema on mount
-  useEffect(() => {
-    useGlobalState.getState().initializeFromSchema(${JSON.stringify(schema, null, 2)});
-  }, []);
-
-  ${eventHandlersCode ? eventHandlersCode + "\n\n" : ""}${wrappedBody}
-}
-`;
+    const pageCode = generatePageCode(page.ast, page.name, page.stateSchema || [], {
+      isExport: true,
+      layoutId: page.layoutId,
+      projectLayouts: project.layouts,
+    });
 
     // Next.js route path structure
     if (page.path === "/") {

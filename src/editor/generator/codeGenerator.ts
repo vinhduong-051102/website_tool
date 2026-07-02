@@ -156,10 +156,22 @@ export const generateReactCode = (node: ASTNode, indent: number = 0): string => 
     .join("\n");
 };
 
-export const generateFullPageCode = (
+export interface GeneratePageOptions {
+  isExport: boolean;
+  layoutId?: string;
+  projectLayouts?: any[];
+}
+
+export const checkLinkUsage = (node: ASTNode): boolean => {
+  if (node.props?.linkToPageId) return true;
+  return node.children?.some(checkLinkUsage) ?? false;
+};
+
+export const generatePageCode = (
   rootNode: ASTNode,
-  pageName: string = "Page",
-  stateSchema: StateVariable[] = []
+  pageName: string,
+  stateSchema: StateVariable[],
+  options: GeneratePageOptions
 ): string => {
   const pageBodyCode = generateReactCode(rootNode, 4);
 
@@ -168,12 +180,7 @@ export const generateFullPageCode = (
 
   // Collect and generate event handlers
   const handlers = generateAllEventHandlers(rootNode);
-  const eventHandlersCode = handlers
-    .map((code) => {
-      // Indent each event handler function
-      return code;
-    })
-    .join("\n\n");
+  const eventHandlersCode = handlers.join("\n\n");
 
   // Collect dynamic Antd and Icon imports
   const antdImports = new Set<string>();
@@ -290,7 +297,26 @@ export const generateFullPageCode = (
 
   collectImports(rootNode);
 
-  let importStatements = "import React, { useState } from 'react';\n";
+  // Formatting Imports
+  let importStatements = "";
+  const cleanName = pageName.replace(/[^a-zA-Z0-9]/g, "");
+
+  if (options.isExport) {
+    importStatements += `"use client";\n\nimport React, { useEffect } from 'react';\nimport { useGlobalState } from '@/store/useGlobalState';\nimport { useRouter } from 'next/navigation';\n`;
+    if (options.layoutId && options.projectLayouts) {
+      const layout = options.projectLayouts.find((l) => l.id === options.layoutId);
+      if (layout) {
+        const cleanLayoutName = layout.name.replace(/[^a-zA-Z0-9]/g, "");
+        importStatements += `import ${cleanLayoutName}Layout from '@/components/layouts/${layout.id}';\n`;
+      }
+    }
+    if (checkLinkUsage(rootNode)) {
+      importStatements += `import Link from 'next/link';\n`;
+    }
+  } else {
+    importStatements += "import React, { useState } from 'react';\n";
+  }
+
   if (antdImports.size > 0) {
     importStatements += `import { ${Array.from(antdImports).sort().join(", ")} } from 'antd';\n`;
   }
@@ -298,12 +324,47 @@ export const generateFullPageCode = (
     importStatements += `import { ${Array.from(iconImports).sort().join(", ")} } from '@ant-design/icons';\n`;
   }
 
-  const pageStateInterface = generateStateInterface(stateSchema);
+  // Component Wrapper & State
+  let componentBody = "";
+  if (options.isExport) {
+    let wrappedBody = "";
+    if (options.layoutId && options.projectLayouts) {
+      const layout = options.projectLayouts.find((l) => l.id === options.layoutId);
+      if (layout) {
+        const cleanLayoutName = layout.name.replace(/[^a-zA-Z0-9]/g, "");
+        wrappedBody = `  return (
+    <${cleanLayoutName}Layout>
+      <div className="w-full h-full">
+        ${pageBodyCode.trim().split("\n").join("\n      ")}
+      </div>
+    </${cleanLayoutName}Layout>
+  );`;
+      }
+    }
 
-  const fullCode = `${importStatements}
-${pageStateInterface}
+    if (!wrappedBody) {
+      wrappedBody = `  return (
+${pageBodyCode}
+  );`;
+    }
 
-export default function ${pageName}Component() {
+    componentBody = `export default function ${cleanName}Page() {
+  const state = useGlobalState((s) => s.data);
+  const updateState = useGlobalState((s) => s.setState);
+  const router = useRouter();
+
+  // Initialize page-specific state schema on mount
+  useEffect(() => {
+    useGlobalState.getState().initializeFromSchema(${JSON.stringify(stateSchema, null, 2)});
+  }, []);
+
+  ${eventHandlersCode ? eventHandlersCode + "\n\n" : ""}${wrappedBody}
+}`;
+  } else {
+    const pageStateInterface = generateStateInterface(stateSchema);
+    componentBody = `${pageStateInterface}
+
+export default function ${cleanName}Page() {
   const [state, setState] = useState<PageState>(${initialStateJSON});
 
   const updateState = (path: string, value: any) => {
@@ -328,10 +389,19 @@ export default function ${pageName}Component() {
   ${eventHandlersCode ? eventHandlersCode + "\n\n" : ""}  return (
 ${pageBodyCode}
   );
-}
-`;
+}`;
+  }
 
+  const fullCode = `${importStatements}\n${componentBody}\n`;
   return postProcessCodeChecks(fullCode);
+};
+
+export const generateFullPageCode = (
+  rootNode: ASTNode,
+  pageName: string = "Page",
+  stateSchema: StateVariable[] = []
+): string => {
+  return generatePageCode(rootNode, pageName, stateSchema, { isExport: false });
 };
 
 export const generateStateInterface = (schema: StateVariable[]): string => {
