@@ -5,14 +5,13 @@ export const codeGenerator = (
   childrenCode: string,
   breakpointStylesCode?: string
 ): string => {
-  const tailwindClasses = breakpointStylesCode || "";
-  
-  if (!childrenCode || childrenCode.trim() === "") {
-    return `<div className="${tailwindClasses}" />`;
-  }
-  
-  return `<div className="${tailwindClasses}">
+  const isVertical = node.styles?.desktop?.flexDirection === "column";
+  const verticalAttr = isVertical ? " vertical" : "";
+  const className = breakpointStylesCode ? ` className="${breakpointStylesCode}"` : "";
+
+  return `<Flex${verticalAttr}${className}>
   ${childrenCode.split("\n").join("\n  ")}
-</div>`;
+</Flex>`;
 };
+
 export default codeGenerator;

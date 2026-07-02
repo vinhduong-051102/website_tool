@@ -2,13 +2,44 @@ import React, { useState, useEffect } from "react";
 import { useEditorStore, createASTCommand } from "../store/useEditorStore";
 import { getComponent } from "../components/registry";
 import { findNodeById, updateProps, updateStyles, findNodeContainer } from "../utils/ast";
-import { ASTNode } from "../types";
+import { ASTNode, StateVariable } from "../types";
 import { ChevronDown, ChevronRight, Sliders, Type, LayoutGrid, Paintbrush, Zap, Link2 } from "lucide-react";
 import { EventsPanel } from "./EventsPanel";
 import { BindingsPanel } from "./BindingsPanel";
 import { StateSchemaPanel } from "./StateSchemaPanel";
-
 import { PageAndLayoutSettings } from "./PageAndLayoutSettings";
+import { useGlobalState } from "../state/useGlobalState";
+import { message } from "antd";
+
+const PropertyBindingIndicator: React.FC<{ propKey: string; node: ASTNode; pageStateSchema?: StateVariable[] }> = ({ propKey, node, pageStateSchema }) => {
+  const binding = node.bindings?.find((b) => b.prop === propKey);
+  const runtimeData = useGlobalState((s) => s.data);
+  if (!binding) return null;
+
+  const expression = binding.expression;
+  const stateVar = pageStateSchema?.find((v) => v.key === expression || v.key === `state.${expression}` || `state.${v.key}` === expression);
+  const resolvedValue = useGlobalState.getState().getState(expression);
+  const typeStr = stateVar?.type || typeof resolvedValue || "unknown";
+
+  let displayValue = "";
+  if (resolvedValue === null || resolvedValue === undefined) {
+    displayValue = "undefined";
+  } else if (Array.isArray(resolvedValue)) {
+    displayValue = `Array(${resolvedValue.length})`;
+  } else if (typeof resolvedValue === "object") {
+    displayValue = JSON.stringify(resolvedValue);
+  } else {
+    displayValue = String(resolvedValue);
+  }
+
+  return (
+    <div className="mt-1 p-2 bg-blue-950/20 border border-blue-900/40 rounded text-[10px] space-y-0.5 font-mono text-blue-300">
+      <div><span className="text-gray-400">State:</span> {expression}</div>
+      <div><span className="text-gray-400">Type:</span> {typeStr}</div>
+      <div><span className="text-gray-400">Current Value:</span> <span className="text-amber-400 font-bold">{displayValue}</span></div>
+    </div>
+  );
+};
 
 export const Properties: React.FC = () => {
   const {
@@ -326,11 +357,20 @@ export const Properties: React.FC = () => {
                         {fields.map((field) => {
                           const value = getPropertyValue(field.key, field.target);
                           const cascadedValue = getCascadedStyleValue(field.key);
+                          const isBound = node.bindings?.some((b) => b.prop === field.key);
+
+                          // Resolve enum/select options
+                          const fieldOptions = field.enum 
+                            ? field.enum.map(opt => typeof opt === "string" ? { label: opt, value: opt } : opt)
+                            : field.options || [];
 
                           return (
-                            <div key={field.key} className="space-y-1.5">
-                              <label className="text-[11px] text-gray-400 font-medium flex justify-between">
-                                <span>{field.name}</span>
+                            <div key={field.key} className="space-y-1.5 border-b border-gray-800/40 pb-3 last:border-b-0 last:pb-0">
+                              <label className="text-[11px] text-gray-400 font-medium flex justify-between items-center">
+                                <span className="flex items-center space-x-1">
+                                  <span>{field.name}</span>
+                                  {isBound && <Link2 size={10} className="text-blue-400 animate-pulse" />}
+                                </span>
                                 {field.target === "styles" && activeBreakpoint !== "desktop" && cascadedValue && !value && (
                                   <span className="text-[9px] text-gray-500 italic">
                                     Inherited: {cascadedValue}
@@ -338,112 +378,149 @@ export const Properties: React.FC = () => {
                                 )}
                               </label>
 
-                              {/* Text Inputs */}
-                              {field.type === "text" && (
-                                <input
-                                  type="text"
-                                  value={value}
-                                  placeholder={cascadedValue || (field.defaultValue as string)}
-                                  onChange={(e) => handleLiveChange(field.key, e.target.value, field.target)}
-                                  onBlur={() => handleCommitTyping(field.key, field.target)}
-                                  className="w-full bg-[#111827] border border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 outline-none transition-all"
+                              {/* Render binding indicator/current-value if bound */}
+                              {isBound && (
+                                <PropertyBindingIndicator 
+                                  propKey={field.key} 
+                                  node={node} 
+                                  pageStateSchema={activePage?.stateSchema} 
                                 />
                               )}
 
-                              {/* Number Inputs */}
-                              {field.type === "number" && (
-                                <input
-                                  type="number"
-                                  value={value}
-                                  min={field.min}
-                                  max={field.max}
-                                  step={field.step}
-                                  placeholder={cascadedValue || String(field.defaultValue || "")}
-                                  onChange={(e) => handleLiveChange(field.key, e.target.value, field.target)}
-                                  onBlur={() => handleCommitTyping(field.key, field.target)}
-                                  className="w-full bg-[#111827] border border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 outline-none transition-all"
-                                />
-                              )}
-
-                              {/* Textarea */}
-                              {field.type === "textarea" && (
-                                <textarea
-                                  rows={3}
-                                  value={value}
-                                  placeholder={cascadedValue || (field.defaultValue as string)}
-                                  onChange={(e) => handleLiveChange(field.key, e.target.value, field.target)}
-                                  onBlur={() => handleCommitTyping(field.key, field.target)}
-                                  className="w-full bg-[#111827] border border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 outline-none transition-all resize-none"
-                                />
-                              )}
-
-                              {/* Dropdown Select */}
-                              {field.type === "select" && (
-                                <select
-                                  value={value || cascadedValue}
-                                  onChange={(e) => handleDirectCommit(field.key, e.target.value, field.target)}
-                                  className="w-full bg-[#111827] border border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-2.5 py-1.5 text-xs text-gray-200 outline-none transition-all"
-                                >
-                                  <option value="">Choose value...</option>
-                                  {field.options?.map((opt) => (
-                                    <option key={String(opt.value)} value={String(opt.value)}>
-                                      {opt.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              )}
-
-                              {/* Color Picker */}
-                              {field.type === "color" && (
-                                <div className="flex items-center space-x-2">
-                                  <div className="relative w-8 h-8 rounded border border-gray-800 overflow-hidden shrink-0">
+                              {/* Only show editor inputs if not bound */}
+                              {!isBound && (
+                                <>
+                                  {/* Text / String Inputs */}
+                                  {(field.type === "text" || field.type === "string") && (
                                     <input
-                                      type="color"
-                                      value={value || cascadedValue || "#ffffff"}
+                                      type="text"
+                                      value={value}
+                                      placeholder={cascadedValue || String(field.defaultValue ?? "")}
                                       onChange={(e) => handleLiveChange(field.key, e.target.value, field.target)}
                                       onBlur={() => handleCommitTyping(field.key, field.target)}
-                                      className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer p-0 border-0"
+                                      className="w-full bg-[#111827] border border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 outline-none transition-all"
                                     />
-                                  </div>
-                                  <input
-                                    type="text"
-                                    value={value}
-                                    placeholder={cascadedValue || "#ffffff"}
-                                    onChange={(e) => handleLiveChange(field.key, e.target.value, field.target)}
-                                    onBlur={() => handleCommitTyping(field.key, field.target)}
-                                    className="flex-1 bg-[#111827] border border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 outline-none transition-all font-mono"
-                                  />
-                                </div>
-                              )}
+                                  )}
 
-                              {/* Range Slider */}
-                              {field.type === "slider" && (
-                                <div className="flex items-center space-x-3">
-                                  <input
-                                    type="range"
-                                    min={field.min ?? 0}
-                                    max={field.max ?? 100}
-                                    step={field.step ?? 1}
-                                    value={Number(value || cascadedValue || 0)}
-                                    onChange={(e) => handleDirectCommit(field.key, e.target.value, field.target)}
-                                    className="flex-1 h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
-                                  />
-                                  <span className="text-[10px] font-mono text-gray-400 w-8 text-right">
-                                    {value || cascadedValue || 0}
-                                  </span>
-                                </div>
-                              )}
+                                  {/* Number Inputs */}
+                                  {field.type === "number" && (
+                                    <input
+                                      type="number"
+                                      value={value}
+                                      min={field.min}
+                                      max={field.max}
+                                      step={field.step}
+                                      placeholder={cascadedValue || String(field.defaultValue ?? "")}
+                                      onChange={(e) => handleLiveChange(field.key, e.target.value, field.target)}
+                                      onBlur={() => handleCommitTyping(field.key, field.target)}
+                                      className="w-full bg-[#111827] border border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 outline-none transition-all"
+                                    />
+                                  )}
 
-                              {/* Switch / Toggle */}
-                              {field.type === "switch" && (
-                                <div className="flex items-center">
-                                  <input
-                                    type="checkbox"
-                                    checked={value === "true" || (!value && cascadedValue === "true")}
-                                    onChange={(e) => handleDirectCommit(field.key, String(e.target.checked), field.target)}
-                                    className="w-8 h-4 bg-gray-800 checked:bg-blue-500 rounded-full appearance-none cursor-pointer relative transition-all before:content-[''] before:absolute before:w-3 before:h-3 before:bg-white before:rounded-full before:top-[1.5px] before:left-[2px] checked:before:translate-x-[14px] before:transition-all"
-                                  />
-                                </div>
+                                  {/* Textarea */}
+                                  {field.type === "textarea" && (
+                                    <textarea
+                                      rows={3}
+                                      value={value}
+                                      placeholder={cascadedValue || String(field.defaultValue ?? "")}
+                                      onChange={(e) => handleLiveChange(field.key, e.target.value, field.target)}
+                                      onBlur={() => handleCommitTyping(field.key, field.target)}
+                                      className="w-full bg-[#111827] border border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 outline-none transition-all resize-none"
+                                    />
+                                  )}
+
+                                  {/* Dropdown Select / Enum */}
+                                  {(field.type === "select" || field.type === "enum") && (
+                                    <select
+                                      value={value || cascadedValue}
+                                      onChange={(e) => handleDirectCommit(field.key, e.target.value, field.target)}
+                                      className="w-full bg-[#111827] border border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-2.5 py-1.5 text-xs text-gray-200 outline-none transition-all"
+                                    >
+                                      <option value="">Choose value...</option>
+                                      {fieldOptions.map((opt) => (
+                                        <option key={String(opt.value)} value={String(opt.value)}>
+                                          {opt.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  )}
+
+                                  {/* Color Picker */}
+                                  {field.type === "color" && (
+                                    <div className="flex items-center space-x-2">
+                                      <div className="relative w-8 h-8 rounded border border-gray-800 overflow-hidden shrink-0">
+                                        <input
+                                          type="color"
+                                          value={value || cascadedValue || "#ffffff"}
+                                          onChange={(e) => handleLiveChange(field.key, e.target.value, field.target)}
+                                          onBlur={() => handleCommitTyping(field.key, field.target)}
+                                          className="absolute inset-[-4px] w-[calc(100%+8px)] h-[calc(100%+8px)] cursor-pointer p-0 border-0"
+                                        />
+                                      </div>
+                                      <input
+                                        type="text"
+                                        value={value}
+                                        placeholder={cascadedValue || "#ffffff"}
+                                        onChange={(e) => handleLiveChange(field.key, e.target.value, field.target)}
+                                        onBlur={() => handleCommitTyping(field.key, field.target)}
+                                        className="flex-1 bg-[#111827] border border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 outline-none transition-all font-mono"
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Range Slider / slider */}
+                                  {field.type === "slider" && (
+                                    <div className="flex items-center space-x-3">
+                                      <input
+                                        type="range"
+                                        min={field.min ?? 0}
+                                        max={field.max ?? 100}
+                                        step={field.step ?? 1}
+                                        value={Number(value || cascadedValue || 0)}
+                                        onChange={(e) => handleDirectCommit(field.key, e.target.value, field.target)}
+                                        className="flex-1 h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                      />
+                                      <span className="text-[10px] font-mono text-gray-400 w-8 text-right">
+                                        {value || cascadedValue || 0}
+                                      </span>
+                                    </div>
+                                  )}
+
+                                  {/* Switch / Toggle / boolean */}
+                                  {(field.type === "switch" || field.type === "boolean") && (
+                                    <div className="flex items-center">
+                                      <input
+                                        type="checkbox"
+                                        checked={value === "true" || (value as any) === true || (!value && cascadedValue === "true")}
+                                        onChange={(e) => handleDirectCommit(field.key, e.target.checked, field.target)}
+                                        className="w-8 h-4 bg-gray-800 checked:bg-blue-500 rounded-full appearance-none cursor-pointer relative transition-all before:content-[''] before:absolute before:w-3 before:h-3 before:bg-white before:rounded-full before:top-[1.5px] before:left-[2px] checked:before:translate-x-[14px] before:transition-all"
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Object / Array JSON Editors */}
+                                  {(field.type === "object" || field.type === "array") && (
+                                    <textarea
+                                      rows={4}
+                                      defaultValue={typeof value === "object" ? JSON.stringify(value, null, 2) : String(value ?? "")}
+                                      placeholder={typeof cascadedValue === "object" ? JSON.stringify(cascadedValue, null, 2) : String(field.defaultValue ? JSON.stringify(field.defaultValue, null, 2) : "")}
+                                      onBlur={(e) => {
+                                        try {
+                                          const val = e.target.value.trim();
+                                          if (!val) {
+                                            handleDirectCommit(field.key, field.type === "array" ? [] : {}, field.target);
+                                          } else {
+                                            const parsed = JSON.parse(val);
+                                            handleDirectCommit(field.key, parsed, field.target);
+                                          }
+                                        } catch (err) {
+                                          message.error(`Invalid JSON for ${field.name}`);
+                                        }
+                                      }}
+                                      className="w-full bg-[#111827] border border-gray-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 outline-none transition-all resize-y font-mono"
+                                    />
+                                  )}
+                                </>
                               )}
                             </div>
                           );

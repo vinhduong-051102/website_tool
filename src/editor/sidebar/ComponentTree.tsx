@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useEditorStore, createASTCommand } from "../store/useEditorStore";
 import { ASTNode } from "../types";
 import { findNodeById, findParentAndIndex, moveNode } from "../utils/ast";
@@ -6,9 +6,7 @@ import { getComponent } from "../components/registry";
 import { getIconComponent } from "./Sidebar";
 import { 
   ChevronRight, 
-  ChevronDown, 
-  Eye, 
-  EyeOff 
+  ChevronDown 
 } from "lucide-react";
 import { message } from "antd";
 
@@ -131,7 +129,7 @@ export const ComponentTree: React.FC = () => {
       }
     }
 
-    const canAcceptChildren = ["Container", "Row", "Column", "Flex", "Loading"].includes(node.type);
+    const canAcceptChildren = ["Container", "Row", "Column", "Flex", "Loading", "Layout", "Header", "Sidebar", "Content", "Footer", "Space", "Card"].includes(node.type);
     const rect = e.currentTarget.getBoundingClientRect();
     const relativeY = e.clientY - rect.top;
     

@@ -1,12 +1,10 @@
 export const defaultProps = {
-  name: "Row Layout",
+  gutter: 16,
+  justify: "start",
+  align: "top",
+  wrap: true,
 };
 
 export const defaultStyles = {
-  display: "flex",
-  flexDirection: "row",
-  gap: "16px",
-  width: "100%",
-  padding: "8px",
-  backgroundColor: "transparent",
+  minHeight: "50px",
 };

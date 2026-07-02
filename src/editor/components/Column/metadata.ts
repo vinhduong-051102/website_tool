@@ -2,7 +2,7 @@ import { ComponentMetadata } from "../types";
 
 export const metadata: ComponentMetadata = {
   type: "Column",
-  name: "Column Layout",
+  name: "Column",
   category: "Layout",
-  icon: "SquareSplitHorizontal",
+  icon: "Columns",
 };

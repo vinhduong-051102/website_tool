@@ -1,19 +1,17 @@
 import { BuilderComponent } from "../types";
 import { metadata } from "./metadata";
 import { defaultProps, defaultStyles } from "./defaultProps";
-import { propertySchema } from "./property";
+import { propertySchema } from "./propertySchema";
 import { Renderer } from "./renderer";
 import { codeGenerator } from "./generator";
+import { validator } from "./validator";
 
 export const ButtonComponent: BuilderComponent = {
   metadata,
   defaultProps,
   defaultStyles,
   propertySchema,
-  validator: {
-    canAcceptChild: () => false, // Button does not accept children
-    canBeDroppedIn: () => true,
-  },
+  validator,
   supportedEvents: ["onClick", "onFocus", "onBlur"],
   renderer: Renderer,
   codeGenerator,

@@ -129,49 +129,45 @@ export const validateFormField = (value: any, props: Record<string, any>): strin
 
 // Common schema fields shared by all form components
 export const commonFormProperties: PropertyConfig[] = [
-  { key: "label", name: "Label", type: "text", target: "props", section: "Content" },
-  { key: "placeholder", name: "Placeholder", type: "text", target: "props", section: "Content" },
-  { key: "value", name: "Value", type: "text", target: "props", section: "Content" },
-  { key: "defaultValue", name: "Default Value", type: "text", target: "props", section: "Content" },
-  { key: "helperText", name: "Helper Text", type: "text", target: "props", section: "Content" },
-  { key: "required", name: "Required", type: "switch", target: "props", section: "Content" },
-  { key: "disabled", name: "Disabled", type: "switch", target: "props", section: "Content" },
-  { key: "readOnly", name: "Read Only", type: "switch", target: "props", section: "Content" },
-  { key: "hidden", name: "Hidden", type: "switch", target: "props", section: "Content" },
-  { key: "allowClear", name: "Allow Clear", type: "switch", target: "props", section: "Content" },
+  { key: "label", name: "Label", type: "string", target: "props", section: "Content" },
+  { key: "placeholder", name: "Placeholder", type: "string", target: "props", section: "Content" },
+  { key: "value", name: "Value", type: "string", target: "props", section: "Content" },
+  { key: "defaultValue", name: "Default Value", type: "string", target: "props", section: "Content" },
+  { key: "helperText", name: "Helper Text", type: "string", target: "props", section: "Content" },
+  { key: "required", name: "Required", type: "boolean", target: "props", section: "Content" },
+  { key: "disabled", name: "Disabled", type: "boolean", target: "props", section: "Content" },
+  { key: "readOnly", name: "Read Only", type: "boolean", target: "props", section: "Content" },
+  { key: "hidden", name: "Hidden", type: "boolean", target: "props", section: "Content" },
+  { key: "allowClear", name: "Allow Clear", type: "boolean", target: "props", section: "Content" },
   {
     key: "size",
     name: "Size",
-    type: "select",
+    type: "enum",
     target: "props",
     section: "Content",
-    options: [
-      { label: "Small", value: "small" },
-      { label: "Middle", value: "middle" },
-      { label: "Large", value: "large" },
-    ],
+    enum: ["small", "middle", "large"],
   },
   {
     key: "status",
     name: "Status Status",
-    type: "select",
+    type: "enum",
     target: "props",
     section: "Content",
-    options: [
+    enum: [
       { label: "Default", value: "" },
       { label: "Warning", value: "warning" },
       { label: "Error", value: "error" },
     ],
   },
-  { key: "width", name: "Width", type: "text", target: "props", section: "Layout" },
-  { key: "height", name: "Height", type: "text", target: "props", section: "Layout" },
+  { key: "width", name: "Width", type: "string", target: "props", section: "Layout" },
+  { key: "height", name: "Height", type: "string", target: "props", section: "Layout" },
 ];
 
 export const validationSchemaProperties: PropertyConfig[] = [
-  { key: "customValidationMessage", name: "Err Msg", type: "text", target: "props", section: "Styles" },
+  { key: "customValidationMessage", name: "Err Msg", type: "string", target: "props", section: "Styles" },
   { key: "minLength", name: "Min Length", type: "number", target: "props", section: "Styles" },
   { key: "maxLength", name: "Max Length", type: "number", target: "props", section: "Styles" },
   { key: "minValue", name: "Min Value", type: "number", target: "props", section: "Styles" },
   { key: "maxValue", name: "Max Value", type: "number", target: "props", section: "Styles" },
-  { key: "regexPattern", name: "Regex Pattern", type: "text", target: "props", section: "Styles" },
+  { key: "regexPattern", name: "Regex Pattern", type: "string", target: "props", section: "Styles" },
 ];

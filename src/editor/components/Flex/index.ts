@@ -1,19 +1,17 @@
 import { BuilderComponent } from "../types";
 import { metadata } from "./metadata";
 import { defaultProps, defaultStyles } from "./defaultProps";
-import { propertySchema } from "./property";
+import { propertySchema } from "./propertySchema";
 import { Renderer } from "./renderer";
 import { codeGenerator } from "./generator";
+import { validator } from "./validator";
 
 export const FlexComponent: BuilderComponent = {
   metadata,
   defaultProps,
   defaultStyles,
   propertySchema,
-  validator: {
-    canAcceptChild: () => true, // Flex accepts all components
-    canBeDroppedIn: () => true,
-  },
+  validator,
   supportedEvents: ["onClick", "onMouseEnter", "onMouseLeave"],
   renderer: Renderer,
   codeGenerator,

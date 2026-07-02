@@ -141,7 +141,11 @@ export const PageAndLayoutSettings: React.FC = () => {
                       ...layouts.map((l) => ({ value: l.id, label: l.name }))
                     ]}
                     className="w-full text-xs"
-                    popupClassName="bg-gray-900 border-gray-800"
+                    classNames={{
+                      popup: {
+                        root: "bg-gray-900 border-gray-800"
+                      }
+                    }}
                   />
                 </div>
               </div>

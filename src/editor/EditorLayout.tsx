@@ -179,7 +179,7 @@ export const EditorLayout: React.FC = () => {
         
         if (selectedNode) {
           const def = getComponent(selectedNode.type);
-          if (def?.validator?.canAcceptChild && ["Container", "Row", "Column", "Flex", "Loading"].includes(selectedNode.type)) {
+          if (def?.validator?.canAcceptChild && ["Container", "Row", "Column", "Flex", "Loading", "Layout", "Header", "Sidebar", "Content", "Footer", "Space", "Card"].includes(selectedNode.type)) {
             targetParentId = selectedId;
           } else {
             const parentInfo = findParentAndIndex(containerInfo.root, selectedId);
@@ -358,7 +358,7 @@ export const EditorLayout: React.FC = () => {
     const targetNode = findNodeById(rootASTToSearch, targetId);
     if (!targetNode) return;
 
-    const isLeafTarget = !["Container", "Row", "Column", "Flex", "Loading"].includes(targetNode.type);
+    const isLeafTarget = !["Container", "Row", "Column", "Flex", "Loading", "Layout", "Header", "Sidebar", "Content", "Footer", "Space", "Card"].includes(targetNode.type);
     const targetParentInfo = findParentAndIndex(rootASTToSearch, targetId);
 
     if (isLeafTarget && targetParentInfo) {
@@ -409,7 +409,7 @@ export const EditorLayout: React.FC = () => {
           tablet: {},
           mobile: {},
         },
-        children: ["Container", "Row", "Column", "Flex", "Loading"].includes(componentType) ? [] : undefined,
+        children: ["Container", "Row", "Column", "Flex", "Loading", "Layout", "Header", "Sidebar", "Content", "Footer", "Space", "Card"].includes(componentType) ? [] : undefined,
       };
 
       const newRoot = insertNode(rootASTToSearch, finalParentId, newNode, targetIndex);

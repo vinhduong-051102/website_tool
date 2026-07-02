@@ -64,6 +64,8 @@ export const getIconComponent = (iconName: string) => {
       return <Columns size={20} />;
     case "LayoutGrid":
       return <LayoutGrid size={20} />;
+    case "Layout":
+      return <Layout size={20} />;
     case "FormInput":
       return <FormInput size={20} />;
     case "CheckSquare":

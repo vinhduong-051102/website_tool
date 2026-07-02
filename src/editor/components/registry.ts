@@ -10,6 +10,16 @@ import { ColumnComponent } from "./Column";
 import { FlexComponent } from "./Flex";
 import { LoadingComponent } from "./Loading";
 
+// Layout Component Imports
+import { LayoutComponent } from "./Layout";
+import { HeaderComponent } from "./Header";
+import { SidebarComponent } from "./Sidebar";
+import { ContentComponent } from "./Content";
+import { FooterComponent } from "./Footer";
+import { SpaceComponent } from "./Space";
+import { DividerComponent } from "./Divider";
+import { CardComponent } from "./Card";
+
 // Form Components Imports
 import { TextInputComponent } from "./TextInput";
 import { PasswordInputComponent } from "./PasswordInput";
@@ -50,6 +60,14 @@ export const componentRegistry: Record<string, BuilderComponent> = {
   Column: ColumnComponent,
   Flex: FlexComponent,
   Loading: LoadingComponent,
+  Layout: LayoutComponent,
+  Header: HeaderComponent,
+  Sidebar: SidebarComponent,
+  Content: ContentComponent,
+  Footer: FooterComponent,
+  Space: SpaceComponent,
+  Divider: DividerComponent,
+  Card: CardComponent,
 
   // Registered Form Components
   TextInput: TextInputComponent,

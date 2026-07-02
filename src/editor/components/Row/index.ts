@@ -1,20 +1,18 @@
 import { BuilderComponent } from "../types";
 import { metadata } from "./metadata";
 import { defaultProps, defaultStyles } from "./defaultProps";
-import { propertySchema } from "./property";
+import { propertySchema } from "./propertySchema";
 import { Renderer } from "./renderer";
 import { codeGenerator } from "./generator";
+import { validator } from "./validator";
 
 export const RowComponent: BuilderComponent = {
   metadata,
   defaultProps,
   defaultStyles,
   propertySchema,
-  validator: {
-    canAcceptChild: (childType) => childType === "Column", // Strict Row -> Column validation
-    canBeDroppedIn: () => true,
-  },
-  supportedEvents: ["onClick"],
+  validator,
+  supportedEvents: ["onClick", "onMouseEnter", "onMouseLeave"],
   renderer: Renderer,
   codeGenerator,
 };

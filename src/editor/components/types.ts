@@ -4,13 +4,16 @@ import { ASTNode } from "../types";
 export interface PropertyConfig {
   key: string;               // Key path in props or styles
   name: string;              // Human-readable label
-  type: "text" | "number" | "select" | "color" | "switch" | "slider" | "textarea";
+  type: "string" | "number" | "boolean" | "enum" | "color" | "textarea" | "object" | "array" | "select" | "text" | "switch" | "slider";
   target: "props" | "styles"; // Where to update (props or styles)
   defaultValue?: unknown;
-  options?: { label: string; value: unknown }[]; // For select dropdowns
+  options?: { label: string; value: unknown }[]; // For old select dropdowns
+  enum?: (string | { label: string; value: unknown })[]; // For new enum options
   min?: number;              // For slider/number
   max?: number;              // For slider/number
   step?: number;             // For slider/number
+  description?: string;
+  category?: string;
   section: "Content" | "Layout" | "Typography" | "Styles"; // Tab or accordion section
 }
 

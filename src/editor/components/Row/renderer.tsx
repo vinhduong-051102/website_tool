@@ -1,4 +1,5 @@
 import React from "react";
+import { Row } from "antd";
 import { ASTNode } from "../../types";
 import { useEditorStore } from "../../store/useEditorStore";
 import { getResolvedStyles } from "../../utils/styles";
@@ -17,14 +18,13 @@ export const Renderer = ({
   children?: React.ReactNode;
 }) => {
   const activeBreakpoint = useEditorStore((state) => state.activeBreakpoint);
+  const isPreviewMode = useEditorStore((state) => state.isPreviewMode);
   const resolvedStyles = getResolvedStyles(node, activeBreakpoint);
 
   const isEmpty = !children || React.Children.count(children) === 0;
 
-  return (
-    <div
-      style={resolvedStyles}
-      className={`relative transition-all duration-150 min-h-[50px] ${
+  const outlineClasses = !isPreviewMode
+    ? `relative transition-all duration-150 ${
         isSelected
           ? "outline-2 outline-blue-500 outline-solid ring-4 ring-blue-500/10 z-10"
           : isOver
@@ -32,15 +32,29 @@ export const Renderer = ({
           : isHovered
           ? "outline-1 outline-blue-400 outline-dashed z-10"
           : ""
-      }`}
+      }`
+    : "";
+
+  return (
+    <Row
+      gutter={node.props.gutter !== undefined ? Number(node.props.gutter) : 16}
+      justify={node.props.justify as any}
+      align={node.props.align as any}
+      wrap={node.props.wrap !== false}
+      style={{
+        ...resolvedStyles,
+        minHeight: isEmpty && !isPreviewMode ? "50px" : undefined,
+      }}
+      className={outlineClasses}
     >
-      {isEmpty && (
+      {isEmpty && !isPreviewMode && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-gray-500 text-[10px] font-mono select-none">
-          {isOver ? "Release to drop Column!" : "Drop Columns here..."}
+          {isOver ? "Release to drop Column!" : "Row (Drop Columns here)"}
         </div>
       )}
       {children}
-    </div>
+    </Row>
   );
 };
+
 export default Renderer;

@@ -1,7 +1,7 @@
 import JSZip from "jszip";
-import { Project, Page, ASTNode, StateVariable } from "../types";
+import { Project, Page, ASTNode } from "../types";
 import { generateReactCode } from "./codeGenerator";
-import { buildInitialStateCode, generateAllEventHandlers } from "./stateGenerator";
+import { generateAllEventHandlers } from "./stateGenerator";
 
 // Scans all pages to see if Ant Design components are used
 const checkAntdUsage = (pages: Page[]): boolean => {
@@ -12,7 +12,9 @@ const checkAntdUsage = (pages: Page[]): boolean => {
       "SearchInput", "PhoneInput", "URLInput", "Checkbox", "CheckboxGroup",
       "Radio", "RadioGroup", "Select", "MultiSelect", "Switch", "DatePicker",
       "TimePicker", "DateTimePicker", "RangePicker", "UploadFile", "UploadImage",
-      "AvatarUpload", "Slider", "Rate", "ColorPicker", "OTPInput", "Loading"
+      "AvatarUpload", "Slider", "Rate", "ColorPicker", "OTPInput", "Loading",
+      "Flex", "Row", "Column", "Container", "Layout", "Header", "Sidebar",
+      "Content", "Footer", "Space", "Divider", "Card"
     ].includes(node.type)) {
       used = true;
     }
@@ -465,6 +467,32 @@ export default function RootLayout({
         case "ColorPicker":
           antdImports.add("ColorPicker");
           break;
+        case "Flex":
+        case "Container":
+          antdImports.add("Flex");
+          break;
+        case "Row":
+          antdImports.add("Row");
+          break;
+        case "Column":
+          antdImports.add("Col");
+          break;
+        case "Layout":
+        case "Header":
+        case "Sidebar":
+        case "Content":
+        case "Footer":
+          antdImports.add("Layout");
+          break;
+        case "Space":
+          antdImports.add("Space");
+          break;
+        case "Divider":
+          antdImports.add("Divider");
+          break;
+        case "Card":
+          antdImports.add("Card");
+          break;
       }
       node.children?.forEach(collectImports);
     };
@@ -597,6 +625,32 @@ export default function ${cleanName}Page() {
         case "ColorPicker":
           antdImports.add("ColorPicker");
           break;
+        case "Flex":
+        case "Container":
+          antdImports.add("Flex");
+          break;
+        case "Row":
+          antdImports.add("Row");
+          break;
+        case "Column":
+          antdImports.add("Col");
+          break;
+        case "Layout":
+        case "Header":
+        case "Sidebar":
+        case "Content":
+        case "Footer":
+          antdImports.add("Layout");
+          break;
+        case "Space":
+          antdImports.add("Space");
+          break;
+        case "Divider":
+          antdImports.add("Divider");
+          break;
+        case "Card":
+          antdImports.add("Card");
+          break;
       }
       node.children?.forEach(collectImports);
     };
@@ -624,7 +678,7 @@ export default function ${cleanName}Page() {
     const footerCode = layout.regions.footer ? generateReactCode(layout.footerAST, 10) : "";
 
     const headerSection = layout.regions.header ? `
-      <div 
+      <Header 
         style={{
           minHeight: "${layout.config?.headerHeight || '64px'}",
           height: "auto",
@@ -632,10 +686,12 @@ export default function ${cleanName}Page() {
           position: ${layout.config?.headerFixed ? '"sticky"' : '"static"'},
           top: 0,
           zIndex: 10,
+          lineHeight: "${layout.config?.headerHeight || '64px'}",
+          padding: "0 24px",
         }}
       >
 ${headerCode}
-      </div>` : "";
+      </Header>` : "";
 
     const sidebarSection = layout.regions.sidebar ? `
         <div 
@@ -646,9 +702,12 @@ ${headerCode}
             zIndex: 9,
           }}
         >
-          <div 
+          <Sider 
+            width={isSidebarCollapsed ? ${layout.config?.sidebarCollapsedWidth || 80} : ${layout.config?.sidebarWidth || 240}}
+            collapsible={${Boolean(layout.config?.sidebarCollapsible)}}
+            collapsed={isSidebarCollapsed}
+            trigger={null}
             style={{
-              width: isSidebarCollapsed ? "${layout.config?.sidebarCollapsedWidth || '64px'}" : "${layout.config?.sidebarWidth || '240px'}",
               backgroundColor: "${layout.config?.sidebarBg || '#111827'}",
               height: "100%",
               transition: "width ${layout.config?.sidebarAnimationDuration || '300ms'} ${layout.config?.sidebarAnimationEasing || 'ease-in-out'}",
@@ -658,7 +717,7 @@ ${headerCode}
             }}
           >
 ${sidebarCode}
-          </div>
+          </Sider>
           ${layout.config?.sidebarCollapsible && layout.config?.sidebarCollapseTrigger === "button" ? `
           <button
             onClick={handleToggleSidebar}
@@ -689,7 +748,7 @@ ${sidebarCode}
         </div>` : "";
 
     const footerSection = layout.regions.footer ? `
-      <div 
+      <Footer 
         style={{
           minHeight: "${layout.config?.footerHeight || '48px'}",
           height: "auto",
@@ -697,14 +756,17 @@ ${sidebarCode}
           position: ${layout.config?.footerFixed ? '"sticky"' : '"static"'},
           bottom: 0,
           zIndex: 8,
+          padding: "16px 24px",
         }}
       >
 ${footerCode}
-      </div>` : "";
+      </Footer>` : "";
 
     const cleanLayoutName = layout.name.replace(/[^a-zA-Z0-9]/g, "");
 
     const layoutCodeStr = `${imports}
+const { Header, Sider, Content, Footer } = Layout;
+
 export default function ${cleanLayoutName}Layout({ children }: { children: React.ReactNode }) {
   ${layout.regions.sidebar ? `
   const isSidebarCollapsed = useGlobalState((s) => s.data.layout?.sidebarCollapsed ?? ${layout.config?.sidebarDefaultCollapsed ?? false});
@@ -715,10 +777,8 @@ export default function ${cleanLayoutName}Layout({ children }: { children: React
   };
   ` : ""}
   return (
-    <div 
+    <Layout 
       style={{
-        display: "flex",
-        flexDirection: "column",
         minHeight: "100vh",
         backgroundColor: "${layout.config?.layoutBg || '#0f172a'}",
         gap: "${layout.config?.layoutGap || '0px'}",
@@ -727,23 +787,25 @@ export default function ${cleanLayoutName}Layout({ children }: { children: React
     >
       ${headerSection}
 
-      <div 
+      <Layout 
+        hasSider={${Boolean(layout.regions.sidebar)}}
         style={{
           display: "flex",
           flexDirection: "${layout.config?.sidebarPosition === 'right' ? 'row-reverse' : 'row'}",
           flex: 1,
           gap: "${layout.config?.layoutGap || '0px'}",
+          background: "transparent",
         }}
       >
         ${sidebarSection}
 
-        <div style={{ flex: 1, maxWidth: "${layout.config?.layoutMaxWidth || '100%'}", margin: "0 auto", width: "100%" }}>
+        <Content style={{ flex: 1, maxWidth: "${layout.config?.layoutMaxWidth || '100%'}", margin: "0 auto", width: "100%", background: "transparent" }}>
           {children}
-        </div>
-      </div>
+        </Content>
+      </Layout>
 
       ${footerSection}
-    </div>
+    </Layout>
   );
 }
 `;

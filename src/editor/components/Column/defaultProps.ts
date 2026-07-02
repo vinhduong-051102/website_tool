@@ -1,14 +1,19 @@
 export const defaultProps = {
-  name: "Column",
+  span: 12,
+  offset: 0,
+  order: 0,
+  push: 0,
+  pull: 0,
+  flex: "",
+  xs: undefined,
+  sm: undefined,
+  md: undefined,
+  lg: undefined,
+  xl: undefined,
+  xxl: undefined,
 };
 
 export const defaultStyles = {
-  flex: "1",
-  padding: "16px",
-  display: "flex",
-  flexDirection: "column",
-  gap: "12px",
-  backgroundColor: "rgba(255, 255, 255, 0.02)",
-  border: "1px dashed rgba(255, 255, 255, 0.05)",
-  borderRadius: "6px",
+  minHeight: "50px",
+  padding: "8px",
 };

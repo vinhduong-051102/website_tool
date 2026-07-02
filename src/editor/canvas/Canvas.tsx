@@ -14,6 +14,9 @@ import {
   ChevronRight
 } from "lucide-react";
 import { useGlobalState } from "../state/useGlobalState";
+import { Layout } from "antd";
+
+const { Header, Sider, Content, Footer } = Layout;
 
 export const Canvas: React.FC = () => {
   const {
@@ -278,10 +281,8 @@ export const Canvas: React.FC = () => {
               {rootNode ? (
                 <>
                   {activeLayout ? (
-                    <div 
+                    <Layout 
                       style={{
-                        display: "flex",
-                        flexDirection: "column",
                         minHeight: "100%",
                         backgroundColor: activeLayout.config?.layoutBg || "#0f172a",
                         gap: activeLayout.config?.layoutGap || "0px",
@@ -290,7 +291,7 @@ export const Canvas: React.FC = () => {
                     >
                       {/* Header */}
                       {activeLayout.regions.header && (
-                        <div 
+                        <Header 
                           style={{
                             minHeight: activeLayout.config?.headerHeight || "64px",
                             height: "auto",
@@ -298,19 +299,22 @@ export const Canvas: React.FC = () => {
                             position: activeLayout.config?.headerFixed ? "sticky" : "static",
                             top: 0,
                             zIndex: 10,
+                            lineHeight: activeLayout.config?.headerHeight || "64px",
+                            padding: "0 24px",
                           }}
                         >
                           <ASTRenderer node={activeLayout.headerAST} />
-                        </div>
+                        </Header>
                       )}
 
                       {/* Sidebar & Content area */}
-                      <div 
+                      <Layout
+                        hasSider={activeLayout.regions.sidebar}
                         style={{
-                          display: "flex",
                           flexDirection: activeLayout.config?.sidebarPosition === "right" ? "row-reverse" : "row",
                           flex: 1,
                           gap: activeLayout.config?.layoutGap || "0px",
+                          background: "transparent",
                         }}
                       >
                         {/* Sidebar */}
@@ -358,11 +362,14 @@ export const Canvas: React.FC = () => {
                                 zIndex: 9,
                               }}
                             >
-                              <div 
+                              <Sider 
+                                width={isSidebarCollapsed 
+                                  ? (Number(activeLayout.config?.sidebarCollapsedWidth) || 64) 
+                                  : (Number(activeLayout.config?.sidebarWidth) || 240)}
+                                collapsible={Boolean(activeLayout.config?.sidebarCollapsible)}
+                                collapsed={isSidebarCollapsed}
+                                trigger={null}
                                 style={{
-                                  width: isSidebarCollapsed 
-                                    ? (activeLayout.config?.sidebarCollapsedWidth || "64px") 
-                                    : (activeLayout.config?.sidebarWidth || "240px"),
                                   backgroundColor: activeLayout.config?.sidebarBg || "#1e293b",
                                   height: "100%",
                                   transition: `width ${activeLayout.config?.sidebarAnimationDuration || "300ms"} ${activeLayout.config?.sidebarAnimationEasing || "ease-in-out"}`,
@@ -372,7 +379,7 @@ export const Canvas: React.FC = () => {
                                 }}
                               >
                                 <ASTRenderer node={activeLayout.sidebarAST} />
-                              </div>
+                              </Sider>
                               {activeLayout.config?.sidebarCollapsible && activeLayout.config?.sidebarCollapseTrigger === "button" && (
                                 <button
                                   onClick={handleToggleSidebar}
@@ -387,14 +394,14 @@ export const Canvas: React.FC = () => {
                         })()}
 
                         {/* Main Content (Slot) */}
-                        <div style={{ flex: 1, maxWidth: activeLayout.config?.layoutMaxWidth || "100%", margin: "0 auto", width: "100%" }}>
+                        <Content style={{ flex: 1, maxWidth: activeLayout.config?.layoutMaxWidth || "100%", margin: "0 auto", width: "100%", background: "transparent" }}>
                           <ASTRenderer node={rootNode} />
-                        </div>
-                      </div>
+                        </Content>
+                      </Layout>
 
                       {/* Footer */}
                       {activeLayout.regions.footer && (
-                        <div 
+                        <Footer 
                           style={{
                             minHeight: activeLayout.config?.footerHeight || "48px",
                             height: "auto",
@@ -402,12 +409,13 @@ export const Canvas: React.FC = () => {
                             position: activeLayout.config?.footerFixed ? "sticky" : "static",
                             bottom: 0,
                             zIndex: 8,
+                            padding: "16px 24px",
                           }}
                         >
                           <ASTRenderer node={activeLayout.footerAST} />
-                        </div>
+                        </Footer>
                       )}
-                    </div>
+                    </Layout>
                   ) : (
                     <ASTRenderer node={rootNode} />
                   )}
