@@ -6,7 +6,6 @@ import { ASTNode, StateVariable } from "../types";
 import { ChevronDown, ChevronRight, Sliders, Type, LayoutGrid, Paintbrush, Zap, Link2 } from "lucide-react";
 import { EventsPanel } from "./EventsPanel";
 import { BindingsPanel } from "./BindingsPanel";
-import { StateSchemaPanel } from "./StateSchemaPanel";
 import { PageAndLayoutSettings } from "./PageAndLayoutSettings";
 import { useGlobalState } from "../state/useGlobalState";
 import { message } from "antd";
@@ -78,18 +77,50 @@ export const Properties: React.FC = () => {
     Styles: true,
   });
 
-  const [activeTab, setActiveTab] = useState<"design" | "events" | "bindings">("design");
+  const activeTab = useEditorStore((s) => s.propertiesTab);
+  const setActiveTab = useEditorStore((s) => s.setPropertiesTab);
 
   // Track old snapshots for blur commits (undo history)
   const [pagesSnapshotBeforeEdit, setPagesSnapshotBeforeEdit] = useState<typeof pages | null>(null);
   const [layoutsSnapshotBeforeEdit, setLayoutsSnapshotBeforeEdit] = useState<typeof layouts | null>(null);
 
-  // Reset snapshot when selection changes
+  // Reset snapshot and auto-route tab when selection changes
   useEffect(() => {
     setPagesSnapshotBeforeEdit(null);
     setLayoutsSnapshotBeforeEdit(null);
+
+    if (selectedNodeId && node) {
+      const selectedVarKey = useEditorStore.getState().selectedVariableKey;
+      if (selectedVarKey) {
+        // If this component is bound to selectedVarKey, switch to bindings tab
+        const hasBinding = node.bindings?.some(b => 
+          b.expression === selectedVarKey || 
+          b.expression === `state.${selectedVarKey}`
+        );
+        if (hasBinding) {
+          setActiveTab("bindings");
+          return;
+        }
+
+        // If this component uses selectedVarKey in events, switch to events tab
+        const hasEventVar = node.events?.some(ev => 
+          ev.actions.some(act => {
+            const statePath = act.params?.statePath as string;
+            if (statePath) {
+              const cleanPath = statePath.startsWith("state.") ? statePath.substring(6) : statePath;
+              if (cleanPath === selectedVarKey || cleanPath.startsWith(selectedVarKey + ".")) return true;
+            }
+            return false;
+          })
+        );
+        if (hasEventVar) {
+          setActiveTab("events");
+          return;
+        }
+      }
+    }
     setActiveTab("design");
-  }, [selectedNodeId]);
+  }, [selectedNodeId, node]);
 
   if (!node || !componentDef) {
     return (

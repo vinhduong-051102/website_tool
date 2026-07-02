@@ -1,9 +1,7 @@
-import React, { useState } from "react";
+import React from "react";
 import { useEditorStore } from "../store/useEditorStore";
-import { StateSchemaPanel } from "./StateSchemaPanel";
 import { 
   Settings, 
-  Database, 
   Layout as LayoutIcon, 
   PanelLeft, 
   PanelBottom, 
@@ -21,7 +19,7 @@ export const PageAndLayoutSettings: React.FC = () => {
     setLayouts,
   } = useEditorStore();
 
-  const [activeTab, setActiveTab] = useState<"settings" | "state">("settings");
+
 
   const activePage = pages.find((p) => p.id === activePageId);
   const activeLayout = layouts.find((l) => l.id === activePage?.layoutId);
@@ -77,36 +75,13 @@ export const PageAndLayoutSettings: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-[#111827] text-gray-200">
-      {/* Tabs */}
-      <div className="flex border-b border-gray-800 bg-[#1f2937]/50">
-        <button
-          onClick={() => setActiveTab("settings")}
-          className={`flex-1 py-3 text-xs font-medium flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
-            activeTab === "settings"
-              ? "border-b-2 border-blue-500 text-blue-400 bg-blue-500/5"
-              : "border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/30"
-          }`}
-        >
-          <Settings size={14} />
-          Page & Layout
-        </button>
-        <button
-          onClick={() => setActiveTab("state")}
-          className={`flex-1 py-3 text-xs font-medium flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
-            activeTab === "state"
-              ? "border-b-2 border-blue-500 text-blue-400 bg-blue-500/5"
-              : "border-transparent text-gray-400 hover:text-gray-200 hover:bg-gray-800/30"
-          }`}
-        >
-          <Database size={14} />
-          State Variables
-        </button>
+      {/* Header */}
+      <div className="flex items-center gap-1.5 px-4 py-3 border-b border-gray-800 bg-[#1f2937]/50">
+        <Settings size={14} className="text-blue-400" />
+        <span className="text-xs font-medium text-blue-400">Page & Layout Settings</span>
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-        {activeTab === "state" ? (
-          <StateSchemaPanel />
-        ) : (
           <div className="p-4 space-y-6">
             {/* Page Settings */}
             <div>
@@ -493,7 +468,6 @@ export const PageAndLayoutSettings: React.FC = () => {
               </div>
             )}
           </div>
-        )}
       </div>
     </div>
   );

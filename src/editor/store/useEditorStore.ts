@@ -30,6 +30,9 @@ interface EditorState {
   // History stack (non-persistent)
   history: Command[];
   historyIndex: number;
+
+  selectedVariableKey: string | null;
+  propertiesTab: "design" | "events" | "bindings";
 }
 
 interface EditorActions {
@@ -59,6 +62,8 @@ interface EditorActions {
   setSnapToGrid: (snap: boolean) => void;
   setIsPreviewMode: (isPreview: boolean) => void;
   resetProject: () => void;
+  setSelectedVariableKey: (key: string | null) => void;
+  setPropertiesTab: (tab: "design" | "events" | "bindings") => void;
   addApi: (api: { name: string; url: string; method: string; headers?: string; body?: string }) => void;
 
   // Command History Actions
@@ -129,6 +134,8 @@ export const useEditorStore = create<EditorStore>()(
 
       history: [],
       historyIndex: -1,
+      selectedVariableKey: null,
+      propertiesTab: "design",
 
       // Project Actions
       createProject: (name, template) => {
@@ -334,6 +341,8 @@ export const useEditorStore = create<EditorStore>()(
       setShowGrid: (show) => set({ showGrid: show }),
       setSnapToGrid: (snap) => set({ snapToGrid: snap }),
       setIsPreviewMode: (isPreview) => set({ isPreviewMode: isPreview }),
+      setSelectedVariableKey: (key) => set({ selectedVariableKey: key }),
+      setPropertiesTab: (tab) => set({ propertiesTab: tab }),
 
       resetProject: () => {
         set({
@@ -467,19 +476,24 @@ useEditorStore.subscribe((state) => {
   }
 });
 
-// Factory function to create history command for AST changes
 export const createASTCommand = (
   name: string,
   newPages: Page[],
   newSelectedNodeIds?: string[],
-  newLayouts?: Layout[]
+  newLayouts?: Layout[],
+  newGlobalVariables?: StateVariable[],
+  newApis?: { name: string; url: string; method: string; headers?: string; body?: string }[]
 ): Command => {
   const store = useEditorStore.getState();
   const oldPages = store.pages;
   const oldSelectedNodeIds = store.selectedNodeIds;
   const oldLayouts = store.layouts || [];
+  const oldGlobalVariables = store.globalVariables || [];
+  const oldApis = store.apis || [];
   const targetSelectedNodeIds = newSelectedNodeIds || oldSelectedNodeIds;
   const targetLayouts = newLayouts || oldLayouts;
+  const targetGlobalVariables = newGlobalVariables || oldGlobalVariables;
+  const targetApis = newApis || oldApis;
 
   return {
     name,
@@ -488,6 +502,8 @@ export const createASTCommand = (
         pages: newPages,
         selectedNodeIds: targetSelectedNodeIds,
         layouts: targetLayouts,
+        globalVariables: targetGlobalVariables,
+        apis: targetApis,
       });
     },
     undo: () => {
@@ -495,6 +511,8 @@ export const createASTCommand = (
         pages: oldPages,
         selectedNodeIds: oldSelectedNodeIds,
         layouts: oldLayouts,
+        globalVariables: oldGlobalVariables,
+        apis: oldApis,
       });
     },
   };

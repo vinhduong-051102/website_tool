@@ -41,6 +41,13 @@ export const cloneASTNode = (node: ASTNode, regenerateIds = false): ASTNode => {
     styles: JSON.parse(JSON.stringify(node.styles)),
   };
 
+  if (node.events) {
+    cloned.events = JSON.parse(JSON.stringify(node.events));
+  }
+  if (node.bindings) {
+    cloned.bindings = JSON.parse(JSON.stringify(node.bindings));
+  }
+
   if (node.children) {
     cloned.children = node.children.map((child) =>
       cloneASTNode(child, regenerateIds)

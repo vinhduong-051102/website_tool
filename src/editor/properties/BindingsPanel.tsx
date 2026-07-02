@@ -350,10 +350,21 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
                                globalVariables.find((v) => v.key === binding.expression);
               const resolvedType = stateVar?.type || (currentValue === null ? "null" : Array.isArray(currentValue) ? "array" : typeof currentValue);
 
+              const selectedVarKey = useEditorStore.getState().selectedVariableKey;
+              const isHighlighted = selectedVarKey && (
+                binding.expression === selectedVarKey || 
+                binding.expression === `state.${selectedVarKey}` ||
+                `state.${binding.expression}` === selectedVarKey
+              );
+
               return (
                 <div
                   key={binding.prop}
-                  className="flex flex-col space-y-2 bg-gray-900/40 p-3 rounded-lg border border-gray-800 hover:border-gray-700/60 transition-all"
+                  className={`flex flex-col space-y-2 bg-gray-900/40 p-3 rounded-lg border transition-all ${
+                    isHighlighted 
+                      ? "border-blue-500/60 ring-2 ring-blue-500/20 bg-blue-950/20 shadow-lg shadow-blue-500/5" 
+                      : "border-gray-800 hover:border-gray-700/60"
+                  }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-1.5">

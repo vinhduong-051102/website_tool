@@ -310,10 +310,26 @@ export const EventsPanel: React.FC<EventsPanelProps> = ({ node }) => {
           const eventConfig = node.events?.find((e) => e.event === eventName);
           const actions = eventConfig?.actions || [];
 
+          // Check if any action in this event references the selectedVariableKey
+          const selectedVarKey = useEditorStore.getState().selectedVariableKey;
+          const isHighlighted = selectedVarKey && actions.some(act => {
+            const statePath = act.params?.statePath as string;
+            if (statePath) {
+              const cleanPath = statePath.startsWith("state.") ? statePath.substring(6) : statePath;
+              if (cleanPath === selectedVarKey || cleanPath.startsWith(selectedVarKey + ".")) return true;
+            }
+            const paramsStr = JSON.stringify(act.params);
+            return paramsStr.includes(`state.${selectedVarKey}`) || paramsStr.includes(`{{${selectedVarKey}}}`);
+          });
+
           return (
             <div
               key={eventName}
-              className="bg-gray-900/40 rounded-lg border border-gray-800 overflow-hidden"
+              className={`bg-gray-900/40 rounded-lg border overflow-hidden transition-all ${
+                isHighlighted
+                  ? "border-blue-500/60 ring-2 ring-blue-500/20 shadow-lg shadow-blue-500/5"
+                  : "border-gray-800"
+              }`}
             >
               {/* Event Header */}
               <div className="px-3.5 py-2.5 bg-gray-950/60 border-b border-gray-850 flex items-center justify-between">

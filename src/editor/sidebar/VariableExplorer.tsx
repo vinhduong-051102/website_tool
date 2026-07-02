@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useEditorStore, createASTCommand } from "../store/useEditorStore";
-import { StateVariable, Page, ASTNode } from "../types";
+import { StateVariable, Page, ASTNode, Layout, BindingConfig, EventActionConfig } from "../types";
 import { useGlobalState } from "../state/useGlobalState";
 import {
   Database,
@@ -106,7 +106,10 @@ export const VariableExplorer: React.FC = () => {
     executeCommand,
     setActivePageId,
     setSelectedNodeIds,
-    apis
+    apis,
+    selectedVariableKey,
+    setSelectedVariableKey,
+    layouts
   } = useEditorStore();
 
   const activePage = pages.find((p) => p.id === activePageId);
@@ -173,6 +176,229 @@ export const VariableExplorer: React.FC = () => {
     setVarModalVisible(true);
   };
 
+  // Helper to recursively update bindings and events in an ASTNode tree
+  const updateASTRefs = (
+    node: ASTNode,
+    oldKey: string,
+    newKey: string | null
+  ): ASTNode => {
+    const updated = { ...node };
+
+    // Update bindings
+    if (updated.bindings) {
+      if (newKey === null) {
+        // Remove binding if key is deleted
+        updated.bindings = updated.bindings.filter(
+          (b) => b.expression !== oldKey && b.expression !== `state.${oldKey}` && `state.${b.expression}` !== oldKey
+        );
+      } else {
+        // Update binding expression if renamed
+        updated.bindings = updated.bindings.map((b) => {
+          if (b.expression === oldKey) {
+            return { ...b, expression: newKey };
+          }
+          if (b.expression === `state.${oldKey}`) {
+            return { ...b, expression: `state.${newKey}` };
+          }
+          if (b.expression.startsWith(oldKey + ".")) {
+            return { ...b, expression: newKey + b.expression.substring(oldKey.length) };
+          }
+          if (b.expression.startsWith(`state.${oldKey}.`)) {
+            return { ...b, expression: `state.${newKey}` + b.expression.substring(`state.${oldKey}`.length) };
+          }
+          return b;
+        });
+      }
+    }
+
+    // Update events
+    if (updated.events) {
+      updated.events = updated.events.map((evt) => {
+        const nextActions = evt.actions.map((act) => {
+          const nextAct = { ...act };
+          if (nextAct.params) {
+            const nextParams = { ...nextAct.params };
+            let hasChanged = false;
+
+            // Handle setState actions
+            if (nextAct.type === "setState" || nextAct.type === "setStateValue") {
+              const statePath = nextParams.statePath as string;
+              if (statePath) {
+                const cleanPath = statePath.startsWith("state.") ? statePath.substring(6) : statePath;
+                if (newKey === null) {
+                  // Keep as is on delete
+                } else {
+                  if (cleanPath === oldKey) {
+                    nextParams.statePath = statePath.startsWith("state.") ? `state.${newKey}` : newKey;
+                    hasChanged = true;
+                  } else if (cleanPath.startsWith(oldKey + ".")) {
+                    const suffix = cleanPath.substring(oldKey.length);
+                    nextParams.statePath = statePath.startsWith("state.") ? `state.${newKey}${suffix}` : `${newKey}${suffix}`;
+                    hasChanged = true;
+                  }
+                }
+              }
+            }
+
+            // General string parameters (string interpolation/expression templates)
+            for (const paramKey of Object.keys(nextParams)) {
+              const val = nextParams[paramKey];
+              if (typeof val === "string") {
+                if (newKey !== null) {
+                  let nextVal = val;
+                  const searchTerms = [
+                    { from: `state.${oldKey}`, to: `state.${newKey}` },
+                    { from: `{{state.${oldKey}}}`, to: `{{state.${newKey}}}` },
+                    { from: `{{${oldKey}}}`, to: `{{${newKey}}}` }
+                  ];
+                  let changedVal = false;
+                  for (const { from, to } of searchTerms) {
+                    if (nextVal.includes(from)) {
+                      nextVal = nextVal.split(from).join(to);
+                      changedVal = true;
+                    }
+                  }
+                  if (changedVal) {
+                    nextParams[paramKey] = nextVal;
+                    hasChanged = true;
+                  }
+                }
+              }
+            }
+
+            if (hasChanged) {
+              nextAct.params = nextParams;
+            }
+          }
+          return nextAct;
+        });
+
+        return { ...evt, actions: nextActions };
+      });
+    }
+
+    if (updated.children) {
+      updated.children = updated.children.map((child) =>
+        updateASTRefs(child, oldKey, newKey)
+      );
+    }
+
+    return updated;
+  };
+
+  // Helper to update APIs references
+  const updateApisRefs = (
+    apisList: typeof apis,
+    oldKey: string,
+    newKey: string | null
+  ) => {
+    if (newKey === null) return apisList;
+    return apisList.map((api) => {
+      const nextApi = { ...api };
+      const searchTerms = [
+        { from: `state.${oldKey}`, to: `state.${newKey}` },
+        { from: `{{state.${oldKey}}}`, to: `{{state.${newKey}}}` },
+        { from: `{{${oldKey}}}`, to: `{{${newKey}}}` }
+      ];
+      for (const field of ["url", "headers", "body"] as const) {
+        let val = nextApi[field];
+        if (typeof val === "string") {
+          for (const { from, to } of searchTerms) {
+            if (val.includes(from)) {
+              val = val.split(from).join(to);
+            }
+          }
+          nextApi[field] = val;
+        }
+      }
+      return nextApi;
+    });
+  };
+
+  // Unified Variable Propagation Helper
+  const propagateVariableEdit = (
+    actionName: string,
+    oldVariable: StateVariable,
+    newVariable: StateVariable | null
+  ) => {
+    let nextPages = JSON.parse(JSON.stringify(pages)) as Page[];
+    const oldKey = oldVariable.key;
+    const newKey = newVariable ? newVariable.key : null;
+
+    const oldScope = oldVariable.scope as string;
+    const newScope = newVariable ? (newVariable.scope as string) : null;
+
+    // Update Page schemas
+    nextPages = nextPages.map((p) => {
+      let nextSchema = p.stateSchema ? [...p.stateSchema] : [];
+      if (oldScope === "local" && p.id === activePageId) {
+        if (newVariable === null) {
+          nextSchema = nextSchema.filter((v) => v.id !== oldVariable.id);
+        } else {
+          const idx = nextSchema.findIndex((v) => v.id === oldVariable.id);
+          if (idx !== -1) {
+            nextSchema[idx] = newVariable;
+          } else {
+            nextSchema.push(newVariable);
+          }
+        }
+      } else if (newVariable && oldScope === "local" && newScope === "global") {
+        if (p.id === activePageId) {
+          nextSchema = nextSchema.filter((v) => v.id !== oldVariable.id);
+        }
+      } else if (newVariable && oldScope === "global" && newScope === "local") {
+        if (p.id === activePageId && !nextSchema.some((v) => v.id === newVariable.id)) {
+          nextSchema.push(newVariable);
+        }
+      }
+      
+      const updatedAST = updateASTRefs(p.ast, oldKey, newKey);
+      return {
+        ...p,
+        stateSchema: nextSchema,
+        ast: updatedAST
+      };
+    });
+
+    // Update Layouts
+    let nextLayouts = JSON.parse(JSON.stringify(layouts || [])) as Layout[];
+    nextLayouts = nextLayouts.map((l) => {
+      return {
+        ...l,
+        headerAST: updateASTRefs(l.headerAST, oldKey, newKey),
+        sidebarAST: updateASTRefs(l.sidebarAST, oldKey, newKey),
+        footerAST: updateASTRefs(l.footerAST, oldKey, newKey),
+      };
+    });
+
+    // Update Global Variables
+    let nextGlobal = [...globalVariables];
+    if (oldScope === "global") {
+      if (newVariable === null) {
+        nextGlobal = nextGlobal.filter((v) => v.id !== oldVariable.id);
+      } else {
+        const idx = nextGlobal.findIndex((v) => v.id === oldVariable.id);
+        if (idx !== -1) {
+          nextGlobal[idx] = newVariable;
+        } else {
+          nextGlobal.push(newVariable);
+        }
+      }
+    } else if (newVariable && oldScope === "local" && newScope === "global") {
+      if (!nextGlobal.some((v) => v.id === newVariable.id)) {
+        nextGlobal.push(newVariable);
+      }
+    } else if (newVariable && oldScope === "global" && newScope === "local") {
+      nextGlobal = nextGlobal.filter((v) => v.id !== oldVariable.id);
+    }
+
+    // Update APIs
+    const nextApis = updateApisRefs(apis || [], oldKey, newKey);
+
+    // Dispatch unified AST command
+    executeCommand(createASTCommand(actionName, nextPages, undefined, nextLayouts, nextGlobal, nextApis));
+  };
+
   const handleSaveVariable = () => {
     form
       .validateFields()
@@ -203,42 +429,22 @@ export const VariableExplorer: React.FC = () => {
 
         const targetScope = values.scope;
 
-        if (targetScope === "global") {
-          // Update global state store
-          let nextGlobalVars = [...globalVariables];
-          if (editingVar && editingVar.scope === "global") {
-            const index = nextGlobalVars.findIndex(v => v.id === editingVar.id);
-            if (index !== -1) nextGlobalVars[index] = newVariable;
-          } else {
-            // Verify duplicates
-            if (nextGlobalVars.some(v => v.key === newVariable.key)) {
-              message.warning(`Global variable "${newVariable.key}" already exists.`);
-              return;
-            }
-            nextGlobalVars.push(newVariable);
+        // Verify duplicates if key changed or new variable
+        const isKeyChanged = !editingVar || editingVar.key !== newVariable.key || editingVar.scope !== newVariable.scope;
+        if (isKeyChanged) {
+          const isDuplicate = targetScope === "global"
+            ? globalVariables.some(v => v.key === newVariable.key)
+            : localVariables.some(v => v.key === newVariable.key);
+          if (isDuplicate) {
+            message.warning(`Variable "${newVariable.key}" already exists in ${targetScope} scope.`);
+            return;
           }
-          setGlobalVariables(nextGlobalVars);
-        } else {
-          // Update local state schemas of the active page
-          if (!activePage) return;
-          let nextLocalVars = [...localVariables];
-          if (editingVar && editingVar.scope === "local") {
-            const index = nextLocalVars.findIndex(v => v.id === editingVar.id);
-            if (index !== -1) nextLocalVars[index] = newVariable;
-          } else {
-            if (nextLocalVars.some(v => v.key === newVariable.key)) {
-              message.warning(`Local variable "${newVariable.key}" already exists on this page.`);
-              return;
-            }
-            nextLocalVars.push(newVariable);
-          }
+        }
 
-          const nextPages = JSON.parse(JSON.stringify(pages)) as Page[];
-          const targetPage = nextPages.find(p => p.id === activePageId);
-          if (targetPage) {
-            targetPage.stateSchema = nextLocalVars;
-            executeCommand(createASTCommand("Update Local Variable Schema", nextPages));
-          }
+        if (editingVar) {
+          propagateVariableEdit("Update Variable", editingVar, newVariable);
+        } else {
+          propagateVariableEdit("Create Variable", newVariable, newVariable);
         }
 
         setVarModalVisible(false);
@@ -258,19 +464,7 @@ export const VariableExplorer: React.FC = () => {
       okType: "danger",
       cancelText: "Cancel",
       onOk: () => {
-        if (record.scope === "global") {
-          const nextGlobal = globalVariables.filter(v => v.id !== record.id);
-          setGlobalVariables(nextGlobal);
-        } else {
-          if (!activePage) return;
-          const nextLocal = localVariables.filter(v => v.id !== record.id);
-          const nextPages = JSON.parse(JSON.stringify(pages)) as Page[];
-          const targetPage = nextPages.find(p => p.id === activePageId);
-          if (targetPage) {
-            targetPage.stateSchema = nextLocal;
-            executeCommand(createASTCommand("Delete Local Variable", nextPages));
-          }
-        }
+        propagateVariableEdit("Delete Variable", record, null);
         message.success(`Variable "${record.name || record.key}" deleted.`);
       }
     });
@@ -285,17 +479,7 @@ export const VariableExplorer: React.FC = () => {
       key: `${record.key}_copy`,
     };
 
-    if (record.scope === "global") {
-      setGlobalVariables([...globalVariables, duplicated]);
-    } else {
-      if (!activePage) return;
-      const nextPages = JSON.parse(JSON.stringify(pages)) as Page[];
-      const targetPage = nextPages.find(p => p.id === activePageId);
-      if (targetPage) {
-        targetPage.stateSchema = [...localVariables, duplicated];
-        executeCommand(createASTCommand("Duplicate Local Variable", nextPages));
-      }
-    }
+    propagateVariableEdit("Duplicate Variable", duplicated, duplicated);
     message.success(`Variable duplicated as "${duplicated.name}".`);
   };
 
@@ -396,10 +580,13 @@ export const VariableExplorer: React.FC = () => {
   const handleInspectVariable = (variable: StateVariable) => {
     setSelectedVarForInspect(variable);
     setInspectorVisible(true);
+    // Set global highlight key so Properties panel can auto-route
+    useEditorStore.getState().setSelectedVariableKey(variable.key);
   };
 
   const handleGoToUsage = (usage: VariableUsage) => {
     if (usage.nodeId) {
+      // Keep selectedVariableKey active so Properties auto-routes to the right tab
       setActivePageId(usage.pageId);
       setSelectedNodeIds([usage.nodeId]);
       setInspectorVisible(false);
@@ -498,14 +685,17 @@ export const VariableExplorer: React.FC = () => {
           filteredVariables.map((v) => {
             const usages = getVariableUsages(v);
             const isGlobal = v.scope === "global";
+            const isHighlighted = v.key === selectedVariableKey;
             return (
               <div
                 key={v.id}
                 onClick={() => handleInspectVariable(v)}
-                className={`group p-2.5 bg-gray-900/60 hover:bg-gray-850 border rounded-lg cursor-pointer transition-all duration-150 flex flex-col space-y-1.5 ${
-                  isGlobal 
-                    ? "border-purple-950/40 hover:border-purple-500/30" 
-                    : "border-blue-950/40 hover:border-blue-500/30"
+                className={`group p-2.5 border rounded-lg cursor-pointer transition-all duration-150 flex flex-col space-y-1.5 ${
+                  isHighlighted
+                    ? "border-blue-500 bg-blue-950/20 shadow-[0_0_8px_rgba(59,130,246,0.35)]"
+                    : isGlobal 
+                      ? "bg-gray-900/60 border-purple-950/40 hover:border-purple-500/30" 
+                      : "bg-gray-900/60 border-blue-950/40 hover:border-blue-500/30"
                 }`}
               >
                 {/* Variable top title */}
@@ -591,7 +781,7 @@ export const VariableExplorer: React.FC = () => {
               { pattern: /^[a-zA-Z0-9_.]*$/, message: "Keys can only contain alphanumeric characters, underscores, and dots" }
             ]}
           >
-            <Input placeholder="e.g. currentUser or form.email" disabled={!!editingVar} />
+            <Input placeholder="e.g. currentUser or form.email" />
           </Form.Item>
 
           <Form.Item

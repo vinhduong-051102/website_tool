@@ -24,6 +24,8 @@ export const useSelection = (nodeId: string) => {
       } else {
         setSelectedNodeIds([nodeId]);
       }
+      // Clear variable highlight when user manually selects a component
+      useEditorStore.getState().setSelectedVariableKey(null);
     },
     [nodeId, isSelected, selectedNodeIds, setSelectedNodeIds]
   );
