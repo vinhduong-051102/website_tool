@@ -50,7 +50,7 @@ export const generateNextJsProjectZip = async (project: Project): Promise<Blob> 
   const zip = new JSZip();
 
   const isAntd = checkAntdUsage(project.pages);
-  const isLucide = checkLucideUsage(project.pages);
+  const isLucide = checkLucideUsage(project.pages) || (project.layouts || []).some(l => l.regions.sidebar && l.config?.sidebarCollapsible && l.config?.sidebarCollapseTrigger === "button");
   const isAxios = checkAxiosUsage(project);
 
   // 1. package.json
@@ -612,6 +612,12 @@ export default function ${cleanName}Page() {
     if (iconImports.size > 0) {
       imports += `import { ${Array.from(iconImports).sort().join(", ")} } from '@ant-design/icons';\n`;
     }
+    if (layout.regions.sidebar) {
+      imports += `import { useGlobalState } from '@/store/useGlobalState';\n`;
+      if (layout.config?.sidebarCollapsible && layout.config?.sidebarCollapseTrigger === "button") {
+        imports += `import { ChevronLeft, ChevronRight } from 'lucide-react';\n`;
+      }
+    }
 
     const headerCode = layout.regions.header ? generateReactCode(layout.headerAST, 10) : "";
     const sidebarCode = layout.regions.sidebar ? generateReactCode(layout.sidebarAST, 10) : "";
@@ -620,7 +626,8 @@ export default function ${cleanName}Page() {
     const headerSection = layout.regions.header ? `
       <div 
         style={{
-          height: "${layout.config?.headerHeight || '64px'}",
+          minHeight: "${layout.config?.headerHeight || '64px'}",
+          height: "auto",
           backgroundColor: "${layout.config?.headerBg || '#1e293b'}",
           position: ${layout.config?.headerFixed ? '"sticky"' : '"static"'},
           top: 0,
@@ -633,22 +640,59 @@ ${headerCode}
     const sidebarSection = layout.regions.sidebar ? `
         <div 
           style={{
-            width: ${layout.config?.sidebarCollapsed ? '"64px"' : `"${layout.config?.sidebarWidth || '240px'}"`},
-            backgroundColor: "${layout.config?.sidebarBg || '#111827'}",
-            position: ${layout.config?.sidebarFixed ? '"sticky"' : '"static"'},
-            left: ${layout.config?.sidebarPosition === "left" && layout.config?.sidebarFixed ? 0 : '"auto"'},
-            right: ${layout.config?.sidebarPosition === "right" && layout.config?.sidebarFixed ? 0 : '"auto"'},
+            position: ${layout.config?.sidebarFixed ? '"sticky"' : '"relative"'},
+            top: ${layout.config?.sidebarFixed ? '0' : '"auto"'},
+            height: ${layout.config?.sidebarFixed ? '"100vh"' : '"auto"'},
             zIndex: 9,
-            transition: "width 0.2s ease-in-out",
           }}
         >
+          <div 
+            style={{
+              width: isSidebarCollapsed ? "${layout.config?.sidebarCollapsedWidth || '64px'}" : "${layout.config?.sidebarWidth || '240px'}",
+              backgroundColor: "${layout.config?.sidebarBg || '#111827'}",
+              height: "100%",
+              transition: "width ${layout.config?.sidebarAnimationDuration || '300ms'} ${layout.config?.sidebarAnimationEasing || 'ease-in-out'}",
+              overflow: "hidden",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
 ${sidebarCode}
+          </div>
+          ${layout.config?.sidebarCollapsible && layout.config?.sidebarCollapseTrigger === "button" ? `
+          <button
+            onClick={handleToggleSidebar}
+            style={{
+              position: "absolute",
+              top: "${layout.config?.sidebarCollapsePosition === 'top' ? '24px' : layout.config?.sidebarCollapsePosition === 'bottom' ? 'auto' : '50%'}",
+              bottom: "${layout.config?.sidebarCollapsePosition === 'bottom' ? '24px' : 'auto'}",
+              transform: "${layout.config?.sidebarCollapsePosition === 'center' ? 'translateY(-50%)' : 'none'}",
+              ${layout.config?.sidebarPosition === 'right' ? 'left' : 'right'}: "-14px",
+              width: "28px",
+              height: "28px",
+              borderRadius: "50%",
+              backgroundColor: "${layout.config?.sidebarBg || '#111827'}",
+              border: "1px solid #374151",
+              color: "#ffffff",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              zIndex: 10,
+              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+              transition: "all 0.2s ease-in-out",
+            }}
+          >
+            {isSidebarCollapsed ? (${layout.config?.sidebarPosition === 'right' ? '<ChevronLeft size={14} />' : '<ChevronRight size={14} />'}) : (${layout.config?.sidebarPosition === 'right' ? '<ChevronRight size={14} />' : '<ChevronLeft size={14} />'})}
+          </button>
+          ` : ""}
         </div>` : "";
 
     const footerSection = layout.regions.footer ? `
       <div 
         style={{
-          height: "${layout.config?.footerHeight || '48px'}",
+          minHeight: "${layout.config?.footerHeight || '48px'}",
+          height: "auto",
           backgroundColor: "${layout.config?.footerBg || '#1e293b'}",
           position: ${layout.config?.footerFixed ? '"sticky"' : '"static"'},
           bottom: 0,
@@ -662,6 +706,14 @@ ${footerCode}
 
     const layoutCodeStr = `${imports}
 export default function ${cleanLayoutName}Layout({ children }: { children: React.ReactNode }) {
+  ${layout.regions.sidebar ? `
+  const isSidebarCollapsed = useGlobalState((s) => s.data.layout?.sidebarCollapsed ?? ${layout.config?.sidebarDefaultCollapsed ?? false});
+  const updateState = useGlobalState((s) => s.setState);
+  
+  const handleToggleSidebar = () => {
+    updateState("layout.sidebarCollapsed", !isSidebarCollapsed);
+  };
+  ` : ""}
   return (
     <div 
       style={{

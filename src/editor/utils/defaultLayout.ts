@@ -47,6 +47,12 @@ export const createDefaultMainLayout = (): Layout => ({
     sidebarBg: "#111827",
     sidebarFixed: false,
     sidebarCollapsible: true,
+    sidebarCollapsedWidth: "64px",
+    sidebarDefaultCollapsed: false,
+    sidebarCollapseTrigger: "button",
+    sidebarCollapsePosition: "center",
+    sidebarAnimationDuration: "300ms",
+    sidebarAnimationEasing: "ease-in-out",
 
     footerHeight: "48px",
     footerBg: "#1f2937",

@@ -254,8 +254,9 @@ export const useEditorStore = create<EditorStore>()(
             history: [],
             historyIndex: -1,
           }));
-        } catch (err: any) {
-          alert(`Failed to import project: ${err.message}`);
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          alert(`Failed to import project: ${errMsg}`);
         }
       },
 

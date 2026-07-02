@@ -306,6 +306,18 @@ export const generateEventHandlerCode = (node: ASTNode, eventConfig: EventConfig
         actionCode += `    }\n`;
         break;
       }
+      case "toggleSidebar": {
+        actionCode += `    updateState("layout.sidebarCollapsed", !state.layout?.sidebarCollapsed);\n`;
+        break;
+      }
+      case "collapseSidebar": {
+        actionCode += `    updateState("layout.sidebarCollapsed", true);\n`;
+        break;
+      }
+      case "expandSidebar": {
+        actionCode += `    updateState("layout.sidebarCollapsed", false);\n`;
+        break;
+      }
       default:
         actionCode += `    // Unsupported action type: ${action.type}\n`;
     }

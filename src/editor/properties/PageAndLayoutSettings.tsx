@@ -358,6 +358,81 @@ export const PageAndLayoutSettings: React.FC = () => {
                           />
                         </div>
                       </div>
+                      {config.sidebarCollapsible && (
+                        <>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] text-gray-400 font-medium mb-1">Collapsed Width</label>
+                              <Input
+                                value={config.sidebarCollapsedWidth || "64px"}
+                                onChange={(e) => handleLayoutChange("sidebarCollapsedWidth", e.target.value)}
+                                className="bg-gray-950 border-gray-800 text-gray-200 text-xs py-1"
+                              />
+                            </div>
+                            <div className="flex items-center justify-between mt-5">
+                              <span className="text-[10px] text-gray-400 font-medium">Default Collapsed</span>
+                              <Switch
+                                checked={!!config.sidebarDefaultCollapsed}
+                                onChange={(val) => handleLayoutChange("sidebarDefaultCollapsed", val)}
+                                size="small"
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] text-gray-400 font-medium mb-1">Collapse Trigger</label>
+                              <Select
+                                value={config.sidebarCollapseTrigger || "button"}
+                                onChange={(val) => handleLayoutChange("sidebarCollapseTrigger", val)}
+                                options={[
+                                  { value: "button", label: "Button" },
+                                  { value: "none", label: "None (Event only)" }
+                                ]}
+                                className="w-full text-xs"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-gray-400 font-medium mb-1">Collapse Position</label>
+                              <Select
+                                value={config.sidebarCollapsePosition || "center"}
+                                onChange={(val) => handleLayoutChange("sidebarCollapsePosition", val)}
+                                options={[
+                                  { value: "top", label: "Top" },
+                                  { value: "center", label: "Center" },
+                                  { value: "bottom", label: "Bottom" }
+                                ]}
+                                className="w-full text-xs"
+                                disabled={config.sidebarCollapseTrigger === "none"}
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] text-gray-400 font-medium mb-1">Anim Duration</label>
+                              <Input
+                                value={config.sidebarAnimationDuration || "300ms"}
+                                onChange={(e) => handleLayoutChange("sidebarAnimationDuration", e.target.value)}
+                                className="bg-gray-950 border-gray-800 text-gray-200 text-xs py-1"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-gray-400 font-medium mb-1">Anim Easing</label>
+                              <Select
+                                value={config.sidebarAnimationEasing || "ease-in-out"}
+                                onChange={(val) => handleLayoutChange("sidebarAnimationEasing", val)}
+                                options={[
+                                  { value: "linear", label: "Linear" },
+                                  { value: "ease", label: "Ease" },
+                                  { value: "ease-in", label: "Ease In" },
+                                  { value: "ease-out", label: "Ease Out" },
+                                  { value: "ease-in-out", label: "Ease In Out" }
+                                ]}
+                                className="w-full text-xs"
+                              />
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 )}

@@ -143,22 +143,24 @@ export const useGlobalState = create<GlobalStateStore>()((set, get) => ({
 }));
 
 // Helper functions for merging schemas
-const isObject = (item: any): boolean => {
-  return item && typeof item === "object" && !Array.isArray(item);
+const isObject = (item: unknown): boolean => {
+  return typeof item === "object" && item !== null && !Array.isArray(item);
 };
 
-const deepMerge = (target: any, source: any): any => {
+const deepMerge = (target: Record<string, unknown>, source: Record<string, unknown>): Record<string, unknown> => {
   const output = { ...target };
   if (isObject(target) && isObject(source)) {
     Object.keys(source).forEach((key) => {
-      if (isObject(source[key])) {
+      const sourceVal = source[key];
+      const targetVal = target[key];
+      if (isObject(sourceVal)) {
         if (!(key in target)) {
-          output[key] = source[key];
+          output[key] = sourceVal;
         } else {
-          output[key] = deepMerge(target[key], source[key]);
+          output[key] = deepMerge(targetVal as Record<string, unknown>, sourceVal as Record<string, unknown>);
         }
       } else {
-        output[key] = source[key];
+        output[key] = sourceVal;
       }
     });
   }

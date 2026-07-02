@@ -17,6 +17,9 @@ import { runConditionAction } from "./actions/runCondition";
 import { showLoadingAction } from "./actions/showLoading";
 import { hideLoadingAction } from "./actions/hideLoading";
 import { toggleLoadingAction } from "./actions/toggleLoading";
+import { toggleSidebarAction } from "./actions/toggleSidebar";
+import { collapseSidebarAction } from "./actions/collapseSidebar";
+import { expandSidebarAction } from "./actions/expandSidebar";
 
 /** Registry mapping action type keys to their handlers */
 const actionRegistry: Record<string, ActionHandler> = {};
@@ -41,6 +44,9 @@ const builtInActions: ActionHandler[] = [
   showLoadingAction,
   hideLoadingAction,
   toggleLoadingAction,
+  toggleSidebarAction,
+  collapseSidebarAction,
+  expandSidebarAction,
 ];
 
 for (const action of builtInActions) {

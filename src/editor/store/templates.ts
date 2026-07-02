@@ -1,4 +1,4 @@
-import { Page, StateVariable, ASTNode } from "../types";
+import { Page, StateVariable, ASTNode, Layout, EventActionConfig } from "../types";
 import { createDefaultRootNode } from "../utils/defaultRoot";
 
 // Helper to generate a unique random ID
@@ -6,6 +6,7 @@ const genId = (type: string) => `${type.toLowerCase()}-${Math.random().toString(
 
 export interface TemplateData {
   pages: Page[];
+  layouts?: Layout[];
   apis: { name: string; url: string; method: string; headers?: string; body?: string }[];
   env?: Record<string, string>;
 }
@@ -54,7 +55,7 @@ const createText = (text: string, fontSize = "14px", color = "#9ca3af"): ASTNode
 });
 
 // Helper to create a button
-const createButton = (text: string, onClickActions: any[] = []): ASTNode => ({
+const createButton = (text: string, onClickActions: EventActionConfig[] = []): ASTNode => ({
   id: genId("Button"),
   type: "Button",
   props: { text, type: "primary" },

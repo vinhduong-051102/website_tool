@@ -69,6 +69,7 @@ export interface StateVariable {
 export interface Layout {
   id: string;
   name: string;
+  isDefault?: boolean;
   regions: {
     header: boolean;
     sidebar: boolean;
@@ -87,6 +88,12 @@ export interface Layout {
     sidebarBg?: string;
     sidebarFixed?: boolean;
     sidebarCollapsible?: boolean;
+    sidebarCollapsedWidth?: string;
+    sidebarDefaultCollapsed?: boolean;
+    sidebarCollapseTrigger?: "button" | "none";
+    sidebarCollapsePosition?: "top" | "center" | "bottom";
+    sidebarAnimationDuration?: string;
+    sidebarAnimationEasing?: string;
 
     footerHeight?: string;
     footerBg?: string;

@@ -9,8 +9,11 @@ import {
   Grid, 
   Smartphone, 
   Tablet as TabletIcon, 
-  Monitor 
+  Monitor,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
+import { useGlobalState } from "../state/useGlobalState";
 
 export const Canvas: React.FC = () => {
   const {
@@ -64,6 +67,16 @@ export const Canvas: React.FC = () => {
   const activePage = pages.find((p) => p.id === activePageId);
   const rootNode = activePage?.ast;
   const activeLayout = layouts.find((l) => l.id === activePage?.layoutId);
+
+  const isSidebarCollapsed = useGlobalState((state) => {
+    const data = state.data as Record<string, Record<string, unknown>>;
+    const layout = data.layout;
+    return (layout?.sidebarCollapsed as boolean | undefined) ?? activeLayout?.config?.sidebarDefaultCollapsed ?? activeLayout?.config?.sidebarCollapsed ?? false;
+  }) as boolean;
+
+  const handleToggleSidebar = () => {
+    useGlobalState.getState().setState("layout.sidebarCollapsed", !isSidebarCollapsed);
+  };
 
   const handleMouseDown = (e: React.MouseEvent) => {
     // Left-click on canvas background or middle-click anywhere clears selection or starts panning
@@ -279,7 +292,8 @@ export const Canvas: React.FC = () => {
                       {activeLayout.regions.header && (
                         <div 
                           style={{
-                            height: activeLayout.config?.headerHeight || "64px",
+                            minHeight: activeLayout.config?.headerHeight || "64px",
+                            height: "auto",
                             backgroundColor: activeLayout.config?.headerBg || "#1e293b",
                             position: activeLayout.config?.headerFixed ? "sticky" : "static",
                             top: 0,
@@ -300,21 +314,77 @@ export const Canvas: React.FC = () => {
                         }}
                       >
                         {/* Sidebar */}
-                        {activeLayout.regions.sidebar && (
-                          <div 
-                            style={{
-                              width: activeLayout.config?.sidebarCollapsed ? "64px" : (activeLayout.config?.sidebarWidth || "240px"),
-                              backgroundColor: activeLayout.config?.sidebarBg || "#1e293b",
-                              position: activeLayout.config?.sidebarFixed ? "sticky" : "static",
-                              left: activeLayout.config?.sidebarPosition === "left" && activeLayout.config?.sidebarFixed ? 0 : "auto",
-                              right: activeLayout.config?.sidebarPosition === "right" && activeLayout.config?.sidebarFixed ? 0 : "auto",
-                              zIndex: 9,
-                              transition: "width 0.2s ease-in-out",
-                            }}
-                          >
-                            <ASTRenderer node={activeLayout.sidebarAST} />
-                          </div>
-                        )}
+                        {activeLayout.regions.sidebar && (() => {
+                          const isLeft = activeLayout.config?.sidebarPosition !== "right";
+                          const getArrowIcon = () => {
+                            if (isLeft) {
+                              return isSidebarCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />;
+                            } else {
+                              return isSidebarCollapsed ? <ChevronLeft size={14} /> : <ChevronRight size={14} />;
+                            }
+                          };
+
+                          const buttonStyle: React.CSSProperties = {
+                            position: "absolute",
+                            top: activeLayout.config?.sidebarCollapsePosition === "top" 
+                              ? "24px" 
+                              : activeLayout.config?.sidebarCollapsePosition === "bottom" 
+                                ? "auto" 
+                                : "50%",
+                            bottom: activeLayout.config?.sidebarCollapsePosition === "bottom" ? "24px" : "auto",
+                            transform: activeLayout.config?.sidebarCollapsePosition === "center" ? "translateY(-50%)" : "none",
+                            [isLeft ? "right" : "left"]: "-14px",
+                            width: "28px",
+                            height: "28px",
+                            borderRadius: "50%",
+                            backgroundColor: activeLayout.config?.sidebarBg || "#1e293b",
+                            border: "1px solid #374151",
+                            color: "#ffffff",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            zIndex: 10,
+                            boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+                            transition: "all 0.2s ease-in-out",
+                          };
+
+                          return (
+                            <div 
+                              style={{
+                                position: activeLayout.config?.sidebarFixed ? "sticky" : "relative",
+                                top: activeLayout.config?.sidebarFixed ? 0 : "auto",
+                                height: activeLayout.config?.sidebarFixed ? "100vh" : "auto",
+                                zIndex: 9,
+                              }}
+                            >
+                              <div 
+                                style={{
+                                  width: isSidebarCollapsed 
+                                    ? (activeLayout.config?.sidebarCollapsedWidth || "64px") 
+                                    : (activeLayout.config?.sidebarWidth || "240px"),
+                                  backgroundColor: activeLayout.config?.sidebarBg || "#1e293b",
+                                  height: "100%",
+                                  transition: `width ${activeLayout.config?.sidebarAnimationDuration || "300ms"} ${activeLayout.config?.sidebarAnimationEasing || "ease-in-out"}`,
+                                  overflow: "hidden",
+                                  display: "flex",
+                                  flexDirection: "column",
+                                }}
+                              >
+                                <ASTRenderer node={activeLayout.sidebarAST} />
+                              </div>
+                              {activeLayout.config?.sidebarCollapsible && activeLayout.config?.sidebarCollapseTrigger === "button" && (
+                                <button
+                                  onClick={handleToggleSidebar}
+                                  style={buttonStyle}
+                                  className="hover:scale-105 hover:bg-blue-600 transition-all flex items-center justify-center text-white"
+                                >
+                                  {getArrowIcon()}
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* Main Content (Slot) */}
                         <div style={{ flex: 1, maxWidth: activeLayout.config?.layoutMaxWidth || "100%", margin: "0 auto", width: "100%" }}>
@@ -326,7 +396,8 @@ export const Canvas: React.FC = () => {
                       {activeLayout.regions.footer && (
                         <div 
                           style={{
-                            height: activeLayout.config?.footerHeight || "48px",
+                            minHeight: activeLayout.config?.footerHeight || "48px",
+                            height: "auto",
                             backgroundColor: activeLayout.config?.footerBg || "#1e293b",
                             position: activeLayout.config?.footerFixed ? "sticky" : "static",
                             bottom: 0,
