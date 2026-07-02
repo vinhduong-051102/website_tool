@@ -262,10 +262,11 @@ interface StateVariable {
 interface GlobalState {
   data: Record<string, any>;
   defaults: Record<string, any>;
+  variableScopes: Record<string, "global" | "local">;
   setState: (path: string, value: any) => void;
   toggleState: (path: string) => void;
   resetState: (path: string) => void;
-  initializeFromSchema: (schema: StateVariable[]) => void;
+  initializeFromSchema: (localSchema: StateVariable[], globalSchema?: StateVariable[]) => void;
 }
 
 const setByPath = (obj: any, path: string, value: any) => {
@@ -289,6 +290,7 @@ const getByPath = (obj: any, path: string): any => {
 export const useGlobalState = create<GlobalState>((set, get) => ({
   data: {},
   defaults: {},
+  variableScopes: {},
 
   setState: (path, value) => {
     set((state) => ({
@@ -310,27 +312,34 @@ export const useGlobalState = create<GlobalState>((set, get) => ({
     }));
   },
 
-  initializeFromSchema: (schema) => {
-    const defaults: Record<string, any> = {};
-    schema.forEach((v) => {
-      const keys = v.key.split(".");
-      let current = defaults;
-      for (let i = 0; i < keys.length - 1; i++) {
-        if (!(keys[i] in current)) {
-          current[keys[i]] = {};
-        }
-        current = current[keys[i]];
-      }
-      current[keys[keys.length - 1]] = v.defaultValue;
-    });
+  initializeFromSchema: (localSchema, globalSchema = []) => {
+    let nextData: Record<string, any> = {};
+    let nextDefaults: Record<string, any> = {};
+    const nextScopes: Record<string, "global" | "local"> = {};
+    const currentData = get().data;
 
-    set((state) => {
-      // Merge new defaults into existing data without losing runtime state
-      const mergedData = { ...defaults, ...state.data };
-      return {
-        defaults,
-        data: mergedData,
-      };
+    // Process global variables (keep current runtime value if already exists)
+    for (const variable of globalSchema) {
+      const cleanKey = variable.key.startsWith("state.") ? variable.key.substring(6) : variable.key;
+      nextScopes[cleanKey] = "global";
+      nextDefaults = setByPath(nextDefaults, cleanKey, variable.defaultValue);
+      
+      const currentValue = getByPath(currentData, cleanKey);
+      nextData = setByPath(nextData, cleanKey, currentValue !== undefined ? currentValue : variable.defaultValue);
+    }
+
+    // Process local variables (always reset to default value on navigation/mount)
+    for (const variable of localSchema) {
+      const cleanKey = variable.key.startsWith("state.") ? variable.key.substring(6) : variable.key;
+      nextScopes[cleanKey] = "local";
+      nextDefaults = setByPath(nextDefaults, cleanKey, variable.defaultValue);
+      nextData = setByPath(nextData, cleanKey, variable.defaultValue);
+    }
+
+    set({
+      data: nextData,
+      defaults: nextDefaults,
+      variableScopes: nextScopes,
     });
   },
 }));
@@ -398,6 +407,7 @@ export default function RootLayout({
       isExport: true,
       layoutId: page.layoutId,
       projectLayouts: project.layouts,
+      globalVariables: project.globalVariables || [],
     });
 
     // Next.js route path structure

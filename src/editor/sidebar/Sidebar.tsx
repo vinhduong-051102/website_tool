@@ -38,10 +38,12 @@ import {
   Palette,
   KeyRound,
   Loader2,
-  FileText
+  FileText,
+  Database
 } from "lucide-react";
 import { PageSidebarList } from "./PageSidebarList";
 import { LayoutSidebarList } from "./LayoutSidebarList";
+import { VariableExplorer } from "./VariableExplorer";
 
 // Map string icon names to Lucide icon components
 export const getIconComponent = (iconName: string) => {
@@ -154,7 +156,7 @@ const DraggableItem: React.FC<DraggableItemProps> = ({ type, name, iconName }) =
 };
 
 export const Sidebar: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"library" | "structure" | "pages">("library");
+  const [activeTab, setActiveTab] = useState<"library" | "structure" | "pages" | "variables">("library");
 
   // Group registry components by category
   const components = Object.values(componentRegistry);
@@ -188,7 +190,7 @@ export const Sidebar: React.FC = () => {
             }`}
           >
             <Box size={13} />
-            <span>Library</span>
+            <span>Lib</span>
           </button>
           <button
             onClick={() => setActiveTab("structure")}
@@ -199,7 +201,7 @@ export const Sidebar: React.FC = () => {
             }`}
           >
             <Layers size={13} />
-            <span>Structure</span>
+            <span>Tree</span>
           </button>
           <button
             onClick={() => setActiveTab("pages")}
@@ -211,6 +213,17 @@ export const Sidebar: React.FC = () => {
           >
             <FileText size={13} />
             <span>Pages</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("variables")}
+            className={`flex-1 py-1.5 rounded-md text-xs font-semibold flex items-center justify-center space-x-1.5 transition-all ${
+              activeTab === "variables"
+                ? "bg-blue-600/90 text-white shadow shadow-blue-500/10"
+                : "text-gray-400 hover:text-gray-200 hover:bg-gray-800/40"
+            }`}
+          >
+            <Database size={13} />
+            <span>Vars</span>
           </button>
         </div>
       </div>
@@ -242,7 +255,7 @@ export const Sidebar: React.FC = () => {
           </div>
         ) : activeTab === "structure" ? (
           <ComponentTree />
-        ) : (
+        ) : activeTab === "pages" ? (
           <div className="h-full flex flex-col divide-y divide-gray-800">
             <div className="flex-1 min-h-0 overflow-y-auto">
               <PageSidebarList />
@@ -251,6 +264,8 @@ export const Sidebar: React.FC = () => {
               <LayoutSidebarList />
             </div>
           </div>
+        ) : (
+          <VariableExplorer />
         )}
       </div>
     </div>

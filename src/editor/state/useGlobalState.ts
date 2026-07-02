@@ -40,6 +40,8 @@ interface GlobalStateStore {
   data: Record<string, unknown>;
   /** The initial defaults (for reset) */
   defaults: Record<string, unknown>;
+  /** Track the scope of each path */
+  variableScopes: Record<string, "global" | "local">;
 
   // Actions
   getState: (path: string) => unknown;
@@ -47,8 +49,8 @@ interface GlobalStateStore {
   toggleState: (path: string) => void;
   resetState: (path?: string) => void;
   getSnapshot: () => Record<string, unknown>;
-  initializeFromSchema: (schema: StateVariable[]) => void;
-  updateSchemaPreserveData: (schema: StateVariable[]) => void;
+  initializeFromSchema: (localSchema: StateVariable[], globalSchema?: StateVariable[]) => void;
+  updateSchemaPreserveData: (localSchema: StateVariable[], globalSchema?: StateVariable[]) => void;
 }
 
 /**
@@ -59,6 +61,7 @@ interface GlobalStateStore {
 export const useGlobalState = create<GlobalStateStore>()((set, get) => ({
   data: {},
   defaults: {},
+  variableScopes: {},
 
   getState: (path: string): unknown => {
     const cleanPath = path.startsWith("state.") ? path.substring(6) : path;
@@ -99,45 +102,67 @@ export const useGlobalState = create<GlobalStateStore>()((set, get) => ({
     return get().data;
   },
 
-  initializeFromSchema: (schema: StateVariable[]): void => {
-    const defaults: Record<string, unknown> = {};
-    for (const variable of schema) {
+  initializeFromSchema: (localSchema: StateVariable[], globalSchema: StateVariable[] = []): void => {
+    let nextData: Record<string, unknown> = {};
+    let nextDefaults: Record<string, unknown> = {};
+    const nextScopes: Record<string, "global" | "local"> = {};
+    const currentData = get().data;
+
+    // Process Global Variables (keep values if already initialized)
+    for (const variable of globalSchema) {
       const cleanKey = variable.key.startsWith("state.") ? variable.key.substring(6) : variable.key;
-      const keys = cleanKey.split(".");
-      let current = defaults;
-      for (let i = 0; i < keys.length - 1; i++) {
-        if (!(keys[i] in current)) {
-          current[keys[i]] = {};
-        }
-        current = current[keys[i]] as Record<string, unknown>;
-      }
-      current[keys[keys.length - 1]] = variable.defaultValue;
+      nextScopes[cleanKey] = "global";
+      nextDefaults = setByPath(nextDefaults, cleanKey, variable.defaultValue);
+      
+      const currentValue = getByPath(currentData, cleanKey);
+      nextData = setByPath(nextData, cleanKey, currentValue !== undefined ? currentValue : variable.defaultValue);
     }
+
+    // Process Local Variables (always reset to default value on initialization)
+    for (const variable of localSchema) {
+      const cleanKey = variable.key.startsWith("state.") ? variable.key.substring(6) : variable.key;
+      nextScopes[cleanKey] = "local";
+      nextDefaults = setByPath(nextDefaults, cleanKey, variable.defaultValue);
+      nextData = setByPath(nextData, cleanKey, variable.defaultValue);
+    }
+
     set({
-      data: JSON.parse(JSON.stringify(defaults)),
-      defaults: JSON.parse(JSON.stringify(defaults)),
+      data: nextData,
+      defaults: nextDefaults,
+      variableScopes: nextScopes,
     });
   },
 
-  updateSchemaPreserveData: (schema: StateVariable[]): void => {
-    const defaults: Record<string, unknown> = {};
-    for (const variable of schema) {
+  updateSchemaPreserveData: (localSchema: StateVariable[], globalSchema: StateVariable[] = []): void => {
+    let nextData: Record<string, unknown> = {};
+    let nextDefaults: Record<string, unknown> = {};
+    const nextScopes: Record<string, "global" | "local"> = {};
+    const currentData = get().data;
+
+    // Process Global (keep values)
+    for (const variable of globalSchema) {
       const cleanKey = variable.key.startsWith("state.") ? variable.key.substring(6) : variable.key;
-      const keys = cleanKey.split(".");
-      let current = defaults;
-      for (let i = 0; i < keys.length - 1; i++) {
-        if (!(keys[i] in current)) {
-          current[keys[i]] = {};
-        }
-        current = current[keys[i]] as Record<string, unknown>;
-      }
-      current[keys[keys.length - 1]] = variable.defaultValue;
+      nextScopes[cleanKey] = "global";
+      nextDefaults = setByPath(nextDefaults, cleanKey, variable.defaultValue);
+      
+      const currentValue = getByPath(currentData, cleanKey);
+      nextData = setByPath(nextData, cleanKey, currentValue !== undefined ? currentValue : variable.defaultValue);
     }
 
-    const mergedData = deepMerge(defaults, get().data);
+    // Process Local (keep values)
+    for (const variable of localSchema) {
+      const cleanKey = variable.key.startsWith("state.") ? variable.key.substring(6) : variable.key;
+      nextScopes[cleanKey] = "local";
+      nextDefaults = setByPath(nextDefaults, cleanKey, variable.defaultValue);
+      
+      const currentValue = getByPath(currentData, cleanKey);
+      nextData = setByPath(nextData, cleanKey, currentValue !== undefined ? currentValue : variable.defaultValue);
+    }
+
     set({
-      data: mergedData,
-      defaults: JSON.parse(JSON.stringify(defaults)),
+      data: nextData,
+      defaults: nextDefaults,
+      variableScopes: nextScopes,
     });
   },
 }));

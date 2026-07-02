@@ -59,9 +59,13 @@ export interface ASTNode {
 
 /** Declares a runtime state variable (stored at project/page level) */
 export interface StateVariable {
+  id?: string;                          // Unique variable identifier
+  name?: string;                        // Readable name of variable
   key: string;                         // Dot-notated path (e.g. "form.login.email")
+  scope?: "global" | "local";           // Scope of the variable
   defaultValue: unknown;               // Initial value
   type: "string" | "number" | "boolean" | "object" | "array";
+  description?: string;                // Optional metadata description
 }
 
 // ─── Layout ──────────────────────────────────────────────────────────
@@ -131,6 +135,7 @@ export interface Project {
   apis: { name: string; url: string; method: string; headers?: string; body?: string }[];
   env?: Record<string, string>;
   theme?: Record<string, unknown>;
+  globalVariables?: StateVariable[];
 }
 
 // ─── Command (Undo/Redo) ─────────────────────────────────────────────

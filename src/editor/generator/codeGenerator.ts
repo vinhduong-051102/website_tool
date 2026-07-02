@@ -160,6 +160,7 @@ export interface GeneratePageOptions {
   isExport: boolean;
   layoutId?: string;
   projectLayouts?: any[];
+  globalVariables?: StateVariable[];
 }
 
 export const checkLinkUsage = (node: ASTNode): boolean => {
@@ -300,9 +301,11 @@ export const generatePageCode = (
   // Formatting Imports
   let importStatements = "";
   const cleanName = pageName.replace(/[^a-zA-Z0-9]/g, "");
+  const globalVariables = options.globalVariables || [];
 
   if (options.isExport) {
-    importStatements += `"use client";\n\nimport React, { useEffect } from 'react';\nimport { useGlobalState } from '@/store/useGlobalState';\nimport { useRouter } from 'next/navigation';\n`;
+    const hasLocalVars = stateSchema.length > 0;
+    importStatements += `"use client";\n\nimport React, { useEffect${hasLocalVars ? ", useState" : ""} } from 'react';\nimport { useGlobalState } from '@/store/useGlobalState';\nimport { useRouter } from 'next/navigation';\n`;
     if (options.layoutId && options.projectLayouts) {
       const layout = options.projectLayouts.find((l) => l.id === options.layoutId);
       if (layout) {
@@ -314,40 +317,91 @@ export const generatePageCode = (
       importStatements += `import Link from 'next/link';\n`;
     }
   } else {
-    importStatements += "import React, { useState } from 'react';\n";
+    importStatements += "import React, { useState, useEffect } from 'react';\nimport { useGlobalState } from '../state/useGlobalState';\n";
   }
 
   if (antdImports.size > 0) {
     importStatements += `import { ${Array.from(antdImports).sort().join(", ")} } from 'antd';\n`;
   }
+
   if (iconImports.size > 0) {
     importStatements += `import { ${Array.from(iconImports).sort().join(", ")} } from '@ant-design/icons';\n`;
   }
 
-  // Component Wrapper & State
+  // Wrap with page layout if applicable
+  let wrappedBody = "";
   let componentBody = "";
-  if (options.isExport) {
-    let wrappedBody = "";
-    if (options.layoutId && options.projectLayouts) {
-      const layout = options.projectLayouts.find((l) => l.id === options.layoutId);
-      if (layout) {
-        const cleanLayoutName = layout.name.replace(/[^a-zA-Z0-9]/g, "");
-        wrappedBody = `  return (
+
+  if (options.layoutId && options.projectLayouts) {
+    const layout = options.projectLayouts.find((l) => l.id === options.layoutId);
+    if (layout) {
+      const cleanLayoutName = layout.name.replace(/[^a-zA-Z0-9]/g, "");
+      wrappedBody = `  return (
     <${cleanLayoutName}Layout>
-      <div className="w-full h-full">
-        ${pageBodyCode.trim().split("\n").join("\n      ")}
-      </div>
+${pageBodyCode}
     </${cleanLayoutName}Layout>
   );`;
-      }
     }
+  }
 
-    if (!wrappedBody) {
-      wrappedBody = `  return (
+  if (!wrappedBody) {
+    wrappedBody = `  return (
 ${pageBodyCode}
   );`;
-    }
+  }
 
+  if (options.isExport) {
+    const pageStateInterface = generateStateInterface(stateSchema);
+    
+    componentBody = `${pageStateInterface}
+
+export default function ${cleanName}Page() {
+  const globalState = useGlobalState((s) => s.data);
+  const updateGlobalState = useGlobalState((s) => s.setState);
+  const [localState, setLocalState] = useState<PageState>(${initialStateJSON});
+  const router = useRouter();
+
+  // Combine local and global state
+  const state = {
+    ...globalState,
+    ...localState,
+  };
+
+  const updateState = (path: string, value: any) => {
+    const cleanPath = path.startsWith("state.") ? path.substring(6) : path;
+    const firstKey = cleanPath.split(".")[0];
+    const isGlobal = ${JSON.stringify(globalVariables.map(v => v.key.split(".")[0]))}.includes(firstKey);
+    
+    if (isGlobal) {
+      updateGlobalState(cleanPath, value);
+    } else {
+      setLocalState((prev: any) => {
+        const next = { ...prev };
+        const keys = cleanPath.split('.');
+        let current = next;
+        for (let i = 0; i < keys.length - 1; i++) {
+          const key = keys[i];
+          if (!current[key] || typeof current[key] !== "object" || current[key] === null) {
+            current[key] = {};
+          } else {
+            current[key] = { ...current[key] };
+          }
+          current = current[key];
+        }
+        current[keys[keys.length - 1]] = value;
+        return next;
+      });
+    }
+  };
+
+  // Initialize page-specific state schema and global variables
+  useEffect(() => {
+    useGlobalState.getState().initializeFromSchema([], ${JSON.stringify(globalVariables, null, 2)});
+  }, []);
+
+  ${eventHandlersCode ? eventHandlersCode + "\n\n" : ""}${wrappedBody}
+}`;
+  } else {
     componentBody = `export default function ${cleanName}Page() {
   const state = useGlobalState((s) => s.data);
   const updateState = useGlobalState((s) => s.setState);
@@ -355,40 +409,10 @@ ${pageBodyCode}
 
   // Initialize page-specific state schema on mount
   useEffect(() => {
-    useGlobalState.getState().initializeFromSchema(${JSON.stringify(stateSchema, null, 2)});
+    useGlobalState.getState().initializeFromSchema(${JSON.stringify(stateSchema, null, 2)}, ${JSON.stringify(globalVariables, null, 2)});
   }, []);
 
   ${eventHandlersCode ? eventHandlersCode + "\n\n" : ""}${wrappedBody}
-}`;
-  } else {
-    const pageStateInterface = generateStateInterface(stateSchema);
-    componentBody = `${pageStateInterface}
-
-export default function ${cleanName}Page() {
-  const [state, setState] = useState<PageState>(${initialStateJSON});
-
-  const updateState = (path: string, value: any) => {
-    setState((prev: any) => {
-      const next = { ...prev };
-      const keys = path.split('.');
-      let current = next;
-      for (let i = 0; i < keys.length - 1; i++) {
-        const key = keys[i];
-        if (!current[key] || typeof current[key] !== "object" || current[key] === null) {
-          current[key] = {};
-        } else {
-          current[key] = { ...current[key] };
-        }
-        current = current[key];
-      }
-      current[keys[keys.length - 1]] = value;
-      return next;
-    });
-  };
-
-  ${eventHandlersCode ? eventHandlersCode + "\n\n" : ""}  return (
-${pageBodyCode}
-  );
 }`;
   }
 
@@ -401,7 +425,11 @@ export const generateFullPageCode = (
   pageName: string = "Page",
   stateSchema: StateVariable[] = []
 ): string => {
-  return generatePageCode(rootNode, pageName, stateSchema, { isExport: false });
+  const globalVars = useEditorStore.getState().globalVariables || [];
+  return generatePageCode(rootNode, pageName, stateSchema, { 
+    isExport: false,
+    globalVariables: globalVars
+  });
 };
 
 export const generateStateInterface = (schema: StateVariable[]): string => {

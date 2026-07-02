@@ -38,11 +38,11 @@ export const ActionConfigurator: React.FC<ActionConfiguratorProps> = ({
   const watchedConditionEnabled = Form.useWatch("conditionEnabled", form);
   const watchedConditionOperator = Form.useWatch("conditionOperator", form);
 
-  const { pages, activePageId, apis, addApi, executeCommand } = useEditorStore();
+  const { pages, activePageId, apis, addApi, executeCommand, globalVariables, setGlobalVariables } = useEditorStore();
   const actionHandlers = getAllActionHandlers();
 
   const activePage = pages.find((p) => p.id === activePageId);
-  const stateSchema = activePage?.stateSchema || [];
+  const localVariables = activePage?.stateSchema || [];
 
   useEffect(() => {
     if (visible) {
@@ -130,7 +130,9 @@ export const ActionConfigurator: React.FC<ActionConfiguratorProps> = ({
   };
 
   // State Tree Mapper
-  const stateTree = buildStateTree(stateSchema);
+  const localStateTree = buildStateTree(localVariables);
+  const globalStateTree = buildStateTree(globalVariables);
+
   const mapStateTreeToSelect = (items: StateTreeItem[]): any[] => {
     return items.map((item) => {
       const isFolder = item.type === "object" && item.children && item.children.length > 0;
@@ -157,7 +159,23 @@ export const ActionConfigurator: React.FC<ActionConfiguratorProps> = ({
       };
     });
   };
-  const stateSelectNodes = mapStateTreeToSelect(stateTree);
+
+  const stateSelectNodes = [
+    {
+      title: "📄 Local Variables (Active Page)",
+      value: "local-variables-group",
+      key: "local-variables-group",
+      selectable: false,
+      children: mapStateTreeToSelect(localStateTree),
+    },
+    {
+      title: "🌐 Global Variables (All Pages)",
+      value: "global-variables-group",
+      key: "global-variables-group",
+      selectable: false,
+      children: mapStateTreeToSelect(globalStateTree),
+    }
+  ];
 
   // Pages Options
   const pageOptions = pages.map((p) => ({
@@ -165,10 +183,14 @@ export const ActionConfigurator: React.FC<ActionConfiguratorProps> = ({
     value: p.id,
   }));
 
-  // Modals List (Extracted from stateSchema modal.*.open)
+  // Modals List (Extracted from state schemas modal.*.open)
+  const allStateSchemas = [
+    ...globalVariables.map(v => ({ ...v, scope: "global" as const })),
+    ...localVariables.map(v => ({ ...v, scope: "local" as const }))
+  ];
   const existingModals = Array.from(
     new Set(
-      stateSchema
+      allStateSchemas
         .filter((s) => s.key.startsWith("modal.") && s.key.endsWith(".open"))
         .map((s) => s.key.split(".")[1])
     )
@@ -215,25 +237,37 @@ export const ActionConfigurator: React.FC<ActionConfiguratorProps> = ({
         }
 
         const newVariable: StateVariable = {
+          id: `var-${Math.random().toString(36).substr(2, 9)}`,
+          name: values.name || values.key,
           key: values.key,
+          scope: values.scope || "local",
           type: values.type,
           defaultValue,
         };
 
-        const nextPages = JSON.parse(JSON.stringify(pages));
-        const page = nextPages.find((p: any) => p.id === activePageId);
-        if (page) {
-          if (!page.stateSchema) page.stateSchema = [];
-          if (page.stateSchema.some((v: any) => v.key === newVariable.key)) {
-            message.warning(`State variable "${newVariable.key}" already exists.`);
+        if (newVariable.scope === "global") {
+          if (globalVariables.some((v) => v.key === newVariable.key)) {
+            message.warning(`Global variable "${newVariable.key}" already exists.`);
             return;
           }
-          page.stateSchema.push(newVariable);
-          executeCommand(createASTCommand("Create Global State Variable", nextPages));
-          message.success(`State variable "${newVariable.key}" created.`);
-          stateForm.resetFields();
-          setStateModalVisible(false);
+          setGlobalVariables([...globalVariables, newVariable]);
+        } else {
+          const nextPages = JSON.parse(JSON.stringify(pages));
+          const page = nextPages.find((p: any) => p.id === activePageId);
+          if (page) {
+            if (!page.stateSchema) page.stateSchema = [];
+            if (page.stateSchema.some((v: any) => v.key === newVariable.key)) {
+              message.warning(`Local variable "${newVariable.key}" already exists.`);
+              return;
+            }
+            page.stateSchema.push(newVariable);
+            executeCommand(createASTCommand("Create Local State Variable", nextPages));
+          }
         }
+
+        message.success(`Variable "${newVariable.key}" created.`);
+        stateForm.resetFields();
+        setStateModalVisible(false);
       });
   };
 
@@ -629,6 +663,20 @@ export const ActionConfigurator: React.FC<ActionConfiguratorProps> = ({
       >
         <Form form={stateForm} layout="vertical" className="pt-4">
           <Form.Item
+            name="scope"
+            label="Variable Scope"
+            rules={[{ required: true }]}
+            initialValue="local"
+          >
+            <Select
+              options={[
+                { label: "📄 Local (Active Page)", value: "local" },
+                { label: "🌐 Global (All Pages)", value: "global" }
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item
             name="key"
             label="State Key (e.g. form.login.email)"
             rules={[
@@ -637,6 +685,14 @@ export const ActionConfigurator: React.FC<ActionConfiguratorProps> = ({
             ]}
           >
             <Input placeholder="form.login.email" />
+          </Form.Item>
+
+          <Form.Item
+            name="name"
+            label="Display Label"
+            rules={[{ required: true, message: "Please enter a display label" }]}
+          >
+            <Input placeholder="e.g. Email Input Value" />
           </Form.Item>
 
           <Form.Item

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { ASTNode, Breakpoint, Page, Command, Project, Layout } from "../types";
+import { ASTNode, Breakpoint, Page, Command, Project, Layout, StateVariable } from "../types";
 import { TEMPLATES } from "./templates";
 import { createDefaultRootNode } from "../utils/defaultRoot";
 import { createDefaultMainLayout } from "../utils/defaultLayout";
@@ -18,6 +18,7 @@ interface EditorState {
   apis: { name: string; url: string; method: string; headers?: string; body?: string }[];
   env: Record<string, string>;
   theme: Record<string, unknown>;
+  globalVariables: StateVariable[];
   
   // Canvas settings
   zoom: number;
@@ -46,6 +47,7 @@ interface EditorActions {
   // State setters
   setPages: (pages: Page[] | ((prev: Page[]) => Page[])) => void;
   setLayouts: (layouts: Layout[] | ((prev: Layout[]) => Layout[])) => void;
+  setGlobalVariables: (vars: StateVariable[] | ((prev: StateVariable[]) => StateVariable[])) => void;
   setActivePageId: (id: string) => void;
   setSelectedNodeIds: (ids: string[]) => void;
   setHoveredNodeId: (id: string | null) => void;
@@ -118,6 +120,7 @@ export const useEditorStore = create<EditorStore>()(
       apis: defaultProject.apis,
       env: defaultProject.env || {},
       theme: defaultProject.theme || {},
+      globalVariables: defaultProject.globalVariables || [],
       zoom: 1,
       pan: { x: 0, y: 0 },
       showGrid: true,
@@ -148,6 +151,7 @@ export const useEditorStore = create<EditorStore>()(
           apis,
           env,
           theme,
+          globalVariables: [],
         };
 
         set((state) => ({
@@ -159,6 +163,7 @@ export const useEditorStore = create<EditorStore>()(
           apis,
           env,
           theme,
+          globalVariables: [],
           selectedNodeIds: [],
           hoveredNodeId: null,
           history: [],
@@ -177,6 +182,7 @@ export const useEditorStore = create<EditorStore>()(
           apis: proj.apis,
           env: proj.env || {},
           theme: proj.theme || {},
+          globalVariables: proj.globalVariables || [],
           selectedNodeIds: [],
           hoveredNodeId: null,
           history: [],
@@ -239,6 +245,9 @@ export const useEditorStore = create<EditorStore>()(
           if (!parsed.layouts || parsed.layouts.length === 0) {
             parsed.layouts = [createDefaultMainLayout()];
           }
+          if (!parsed.globalVariables) {
+            parsed.globalVariables = [];
+          }
 
           set((state) => ({
             projects: [...state.projects, parsed],
@@ -249,6 +258,7 @@ export const useEditorStore = create<EditorStore>()(
             apis: parsed.apis || [],
             env: parsed.env || {},
             theme: parsed.theme || {},
+            globalVariables: parsed.globalVariables || [],
             selectedNodeIds: [],
             hoveredNodeId: null,
             history: [],
@@ -291,7 +301,6 @@ export const useEditorStore = create<EditorStore>()(
         });
       },
 
-      // Setters
       setPages: (pages) => {
         set((state) => {
           const nextPages = typeof pages === "function" ? pages(state.pages) : pages;
@@ -302,6 +311,12 @@ export const useEditorStore = create<EditorStore>()(
         set((state) => {
           const nextLayouts = typeof layouts === "function" ? layouts(state.layouts) : layouts;
           return { layouts: nextLayouts };
+        });
+      },
+      setGlobalVariables: (vars) => {
+        set((state) => {
+          const nextVars = typeof vars === "function" ? vars(state.globalVariables) : vars;
+          return { globalVariables: nextVars };
         });
       },
       setActivePageId: (id) => set({ activePageId: id, selectedNodeIds: [] }),
@@ -333,6 +348,7 @@ export const useEditorStore = create<EditorStore>()(
           ],
           layouts: [createDefaultMainLayout()],
           activePageId: "home",
+          globalVariables: [],
           selectedNodeIds: [],
           hoveredNodeId: null,
           clipboard: null,
@@ -413,14 +429,15 @@ export const useEditorStore = create<EditorStore>()(
         apis: state.apis || [],
         env: state.env || {},
         theme: state.theme || {},
+        globalVariables: state.globalVariables || [],
       }),
     }
   )
 );
 
-// Global subscriber to synchronize pages, apis, env, and theme changes back into the projects array
+// Global subscriber to synchronize pages, apis, env, theme, and globalVariables changes back into the projects array
 useEditorStore.subscribe((state) => {
-  const { projects, activeProjectId, pages, layouts, apis, env, theme } = state;
+  const { projects, activeProjectId, pages, layouts, apis, env, theme, globalVariables } = state;
   const activeProj = projects.find((p) => p.id === activeProjectId);
   if (activeProj) {
     const hasPagesChanged = activeProj.pages !== pages;
@@ -428,8 +445,9 @@ useEditorStore.subscribe((state) => {
     const hasApisChanged = activeProj.apis !== apis;
     const hasEnvChanged = JSON.stringify(activeProj.env) !== JSON.stringify(env);
     const hasThemeChanged = JSON.stringify(activeProj.theme) !== JSON.stringify(theme);
+    const hasGlobalVarsChanged = activeProj.globalVariables !== globalVariables;
 
-    if (hasPagesChanged || hasLayoutsChanged || hasApisChanged || hasEnvChanged || hasThemeChanged) {
+    if (hasPagesChanged || hasLayoutsChanged || hasApisChanged || hasEnvChanged || hasThemeChanged || hasGlobalVarsChanged) {
       useEditorStore.setState((s) => ({
         projects: s.projects.map((p) =>
           p.id === activeProjectId
@@ -440,6 +458,7 @@ useEditorStore.subscribe((state) => {
                 apis: hasApisChanged ? apis : p.apis,
                 env: hasEnvChanged ? env : p.env,
                 theme: hasThemeChanged ? theme : p.theme,
+                globalVariables: hasGlobalVarsChanged ? globalVariables : p.globalVariables || [],
               }
             : p
         ),

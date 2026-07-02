@@ -157,6 +157,9 @@ export const StateSchemaPanel: React.FC = () => {
         }
 
         const newVariable: StateVariable = {
+          id: editingVar?.id || `var-${Math.random().toString(36).substr(2, 9)}`,
+          name: editingVar?.name || values.key,
+          scope: "local",
           key: values.key,
           type: values.type,
           defaultValue,

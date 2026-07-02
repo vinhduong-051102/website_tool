@@ -9,6 +9,7 @@ interface RuntimeProviderProps {
 export const RuntimeProvider: React.FC<RuntimeProviderProps> = ({ children }) => {
   const pages = useEditorStore((state) => state.pages);
   const activePageId = useEditorStore((state) => state.activePageId);
+  const globalVariables = useEditorStore((state) => state.globalVariables || []);
 
   const activePage = pages.find((p) => p.id === activePageId);
   const stateSchema = activePage?.stateSchema || [];
@@ -16,21 +17,21 @@ export const RuntimeProvider: React.FC<RuntimeProviderProps> = ({ children }) =>
   const prevPageIdRef = React.useRef<string | null>(null);
   const prevSchemaStrRef = React.useRef<string>("");
 
-  // Initialize/reset global state whenever we switch pages or the page schema changes
+  // Initialize/reset global state whenever we switch pages or the page schema/global variables change
   useEffect(() => {
-    const schemaStr = JSON.stringify(stateSchema);
+    const schemaStr = JSON.stringify({ stateSchema, globalVariables });
     const schemaChanged = prevSchemaStrRef.current !== schemaStr;
     const pageChanged = prevPageIdRef.current !== activePageId;
 
     if (pageChanged) {
       prevPageIdRef.current = activePageId;
       prevSchemaStrRef.current = schemaStr;
-      useGlobalState.getState().initializeFromSchema(stateSchema);
+      useGlobalState.getState().initializeFromSchema(stateSchema, globalVariables);
     } else if (schemaChanged) {
       prevSchemaStrRef.current = schemaStr;
-      useGlobalState.getState().updateSchemaPreserveData(stateSchema);
+      useGlobalState.getState().updateSchemaPreserveData(stateSchema, globalVariables);
     }
-  }, [activePageId, stateSchema]);
+  }, [activePageId, stateSchema, globalVariables]);
 
   return <>{children}</>;
 };

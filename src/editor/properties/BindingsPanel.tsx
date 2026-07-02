@@ -11,7 +11,7 @@ import {
   ArrowRight,
   Database
 } from "lucide-react";
-import { Select, Button, Modal, Form, message, TreeSelect, Input } from "antd";
+import { Select, Button, Modal, Form, message, TreeSelect, Input, Tag } from "antd";
 import { buildStateTree, isStateCompatible, StateTreeItem } from "../utils/state";
 
 interface BindingsPanelProps {
@@ -19,7 +19,7 @@ interface BindingsPanelProps {
 }
 
 export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
-  const { pages, activePageId, executeCommand } = useEditorStore();
+  const { pages, activePageId, executeCommand, globalVariables, setGlobalVariables } = useEditorStore();
 
   const componentDef = getComponent(node.type);
   const propertySchema = componentDef?.propertySchema || [];
@@ -40,7 +40,7 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
   const selectedPropType = selectedProp?.type || "text";
 
   const activePage = pages.find((p) => p.id === activePageId);
-  const stateSchema = activePage?.stateSchema || [];
+  const localVariables = activePage?.stateSchema || [];
 
   if (bindableProps.length === 0) {
     return (
@@ -135,29 +135,41 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
         }
 
         const newVariable: StateVariable = {
+          id: `var-${Math.random().toString(36).substr(2, 9)}`,
+          name: values.name || values.key,
           key: values.key,
+          scope: values.scope || "local",
           type: values.type,
           defaultValue,
         };
 
-        const nextPages = clonePages();
-        const page = nextPages.find((p: any) => p.id === activePageId);
-        if (page) {
-          if (!page.stateSchema) page.stateSchema = [];
-          if (page.stateSchema.some((v: any) => v.key === newVariable.key)) {
-            message.warning(`State variable "${newVariable.key}" already exists.`);
+        if (newVariable.scope === "global") {
+          if (globalVariables.some((v) => v.key === newVariable.key)) {
+            message.warning(`Global variable "${newVariable.key}" already exists.`);
             return;
           }
-          page.stateSchema.push(newVariable);
-          executeCommand(createASTCommand("Create Global State Variable", nextPages));
-          message.success(`State variable "${newVariable.key}" created.`);
-          
-          // Pre-fill the expression in binding form
-          form.setFieldsValue({ expression: newVariable.key });
-          
-          stateForm.resetFields();
-          setStateCreatorVisible(false);
+          setGlobalVariables([...globalVariables, newVariable]);
+        } else {
+          const nextPages = clonePages();
+          const page = nextPages.find((p: any) => p.id === activePageId);
+          if (page) {
+            if (!page.stateSchema) page.stateSchema = [];
+            if (page.stateSchema.some((v: any) => v.key === newVariable.key)) {
+              message.warning(`Local variable "${newVariable.key}" already exists.`);
+              return;
+            }
+            page.stateSchema.push(newVariable);
+            executeCommand(createASTCommand("Create Local State Variable", nextPages));
+          }
         }
+
+        message.success(`Variable "${newVariable.key}" created.`);
+        
+        // Pre-fill the expression in binding form
+        form.setFieldsValue({ expression: newVariable.key });
+        
+        stateForm.resetFields();
+        setStateCreatorVisible(false);
       })
       .catch((err) => {
         console.warn("State Variable validation error:", err);
@@ -285,8 +297,25 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
     return <span className="text-[10px] text-gray-400">{String(val)}</span>;
   };
 
-  const stateTree = buildStateTree(stateSchema);
-  const selectNodes = selectedPropKey ? mapTreeToSelectNodes(stateTree, selectedPropKey, selectedPropType) : [];
+  const localStateTree = buildStateTree(localVariables);
+  const globalStateTree = buildStateTree(globalVariables);
+
+  const selectNodes = [
+    {
+      title: "📄 Local Variables (Active Page)",
+      value: "local-variables-group",
+      key: "local-variables-group",
+      selectable: false,
+      children: selectedPropKey ? mapTreeToSelectNodes(localStateTree, selectedPropKey, selectedPropType) : [],
+    },
+    {
+      title: "🌐 Global Variables (All Pages)",
+      value: "global-variables-group",
+      key: "global-variables-group",
+      selectable: false,
+      children: selectedPropKey ? mapTreeToSelectNodes(globalStateTree, selectedPropKey, selectedPropType) : [],
+    }
+  ];
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -317,7 +346,8 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
             {node.bindings.map((binding) => {
               const schemaField = bindableProps.find((p) => p.key === binding.prop);
               const currentValue = getNestedValue(globalData, binding.expression);
-              const stateVar = stateSchema.find((v) => v.key === binding.expression);
+              const stateVar = localVariables.find((v) => v.key === binding.expression) || 
+                               globalVariables.find((v) => v.key === binding.expression);
               const resolvedType = stateVar?.type || (currentValue === null ? "null" : Array.isArray(currentValue) ? "array" : typeof currentValue);
 
               return (
@@ -357,6 +387,12 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
                       <span className="font-mono text-blue-400 truncate max-w-[180px]" title={`state.${binding.expression}`}>
                         state.{binding.expression}
                       </span>
+                    </div>
+                     <div className="flex items-center justify-between">
+                      <span className="text-gray-500 font-bold select-none">Scope:</span>
+                      <Tag color={stateVar?.scope === "global" ? "purple" : "blue"} className="border-0 text-[9px] scale-90">
+                        {stateVar?.scope === "global" ? "Global" : "Local"}
+                      </Tag>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-gray-500 font-bold select-none">Data Type:</span>
@@ -472,6 +508,20 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
       >
         <Form form={stateForm} layout="vertical" className="pt-4">
           <Form.Item
+            name="scope"
+            label="Variable Scope"
+            rules={[{ required: true }]}
+            initialValue="local"
+          >
+            <Select
+              options={[
+                { label: "📄 Local (Active Page)", value: "local" },
+                { label: "🌐 Global (All Pages)", value: "global" }
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item
             name="key"
             label="State Key (e.g. form.login.email)"
             rules={[
@@ -480,6 +530,14 @@ export const BindingsPanel: React.FC<BindingsPanelProps> = ({ node }) => {
             ]}
           >
             <Input placeholder="form.login.email" />
+          </Form.Item>
+
+          <Form.Item
+            name="name"
+            label="Display Label"
+            rules={[{ required: true, message: "Please enter a display label" }]}
+          >
+            <Input placeholder="e.g. Email Input Value" />
           </Form.Item>
 
           <Form.Item
