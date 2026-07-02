@@ -237,7 +237,54 @@ export const generateFullPageCode = (
       case "ColorPicker":
         antdImports.add("ColorPicker");
         break;
+      case "Button":
+        antdImports.add("Button");
+        break;
+      case "Flex":
+      case "Container":
+        antdImports.add("Flex");
+        break;
+      case "Row":
+        antdImports.add("Row");
+        break;
+      case "Column":
+        antdImports.add("Col");
+        break;
+      case "Layout":
+      case "Header":
+      case "Sidebar":
+      case "Content":
+      case "Footer":
+        antdImports.add("Layout");
+        break;
+      case "Space":
+        antdImports.add("Space");
+        break;
+      case "Divider":
+        antdImports.add("Divider");
+        break;
+      case "Card":
+        antdImports.add("Card");
+        break;
     }
+
+    if (node.events && node.events.length > 0) {
+      node.events.forEach((evt) => {
+        if (evt.actions && evt.actions.length > 0) {
+          const isUsed = evt.actions.some(
+            (action) => action.type === "setState" && action.params.valueSource === "event"
+          );
+          if (isUsed && evt.event === "onChange") {
+            if (node.type === "Checkbox") {
+              antdImports.add("CheckboxChangeEvent");
+            } else if (node.type === "Radio" || node.type === "RadioGroup") {
+              antdImports.add("RadioChangeEvent");
+            }
+          }
+        }
+      });
+    }
+
     node.children?.forEach(collectImports);
   };
 
@@ -251,9 +298,13 @@ export const generateFullPageCode = (
     importStatements += `import { ${Array.from(iconImports).sort().join(", ")} } from '@ant-design/icons';\n`;
   }
 
-  return `${importStatements}
+  const pageStateInterface = generateStateInterface(stateSchema);
+
+  const fullCode = `${importStatements}
+${pageStateInterface}
+
 export default function ${pageName}Component() {
-  const [state, setState] = useState<any>(${initialStateJSON});
+  const [state, setState] = useState<PageState>(${initialStateJSON});
 
   const updateState = (path: string, value: any) => {
     setState((prev: any) => {
@@ -262,8 +313,11 @@ export default function ${pageName}Component() {
       let current = next;
       for (let i = 0; i < keys.length - 1; i++) {
         const key = keys[i];
-        if (!current[key]) current[key] = {};
-        current[key] = { ...current[key] };
+        if (!current[key] || typeof current[key] !== "object" || current[key] === null) {
+          current[key] = {};
+        } else {
+          current[key] = { ...current[key] };
+        }
         current = current[key];
       }
       current[keys[keys.length - 1]] = value;
@@ -276,4 +330,192 @@ ${pageBodyCode}
   );
 }
 `;
+
+  return postProcessCodeChecks(fullCode);
+};
+
+export const generateStateInterface = (schema: StateVariable[]): string => {
+  if (!schema || schema.length === 0) {
+    return `type PageState = Record<string, any>;`;
+  }
+
+  // Build a nested object structure representing the types
+  const typeObj: Record<string, any> = {};
+
+  schema.forEach((v) => {
+    const keys = v.key.split(".");
+    let current = typeObj;
+    for (let i = 0; i < keys.length - 1; i++) {
+      const key = keys[i];
+      if (!current[key] || typeof current[key] !== "object") {
+        current[key] = {};
+      }
+      current = current[key];
+    }
+    
+    // Map state schema types to typescript types
+    let tsType = "any";
+    if (v.type === "string") tsType = "string";
+    else if (v.type === "number") tsType = "number";
+    else if (v.type === "boolean") tsType = "boolean";
+    else if (v.type === "array") tsType = "any[]";
+    else if (v.type === "object") tsType = "Record<string, any>";
+    else if (v.type === "date") tsType = "string | null";
+
+    current[keys[keys.length - 1]] = tsType;
+  });
+
+  const renderTypeObj = (obj: any, indent: string = "  "): string => {
+    let str = "{\n";
+    for (const [key, value] of Object.entries(obj)) {
+      if (typeof value === "object" && value !== null) {
+        str += `${indent}${key}: ${renderTypeObj(value, indent + "  ")};\n`;
+      } else {
+        str += `${indent}${key}?: ${value};\n`;
+      }
+    }
+    str += `${indent.substring(2)}}`;
+    return str;
+  };
+
+  return `type PageState = ${renderTypeObj(typeObj)};`;
+};
+
+export const postProcessCodeChecks = (code: string): string => {
+  let processed = code;
+
+  // 1. Remove unused async
+  const asyncRegex = /\basync\s*\(([^)]*)\)\s*=>\s*\{([\s\S]*?)\}/g;
+  processed = processed.replace(asyncRegex, (match, params, body) => {
+    const hasAwait = /\bawait\b/.test(body);
+    if (!hasAwait) {
+      return `(${params}) => {${body}}`;
+    }
+    return match;
+  });
+
+  // 2. Fix unused imports in import { A, B } from 'antd'; or '@ant-design/icons'
+  const importRegex = /import\s*\{\s*([^}]+)\s*\}\s*from\s*['"]([^'"]+)['"];?/g;
+  processed = processed.replace(importRegex, (match, importList, source) => {
+    if (source !== "antd" && source !== "@ant-design/icons") {
+      return match;
+    }
+    const items = importList.split(",").map((x: string) => x.trim()).filter(Boolean);
+    const usedItems: string[] = [];
+
+    items.forEach((item: string) => {
+      const escaped = item.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const itemWordRegex = new RegExp(`\\b${escaped}\\b`, "g");
+      const count = (processed.match(itemWordRegex) || []).length;
+      if (count > 1) {
+        usedItems.push(item);
+      }
+    });
+
+    if (usedItems.length === 0) {
+      return "";
+    }
+    return `import { ${usedItems.sort().join(", ")} } from '${source}';`;
+  });
+
+  // 3. Fix missing imports (scan for standard Antd tags used in JSX)
+  const standardAntdComponents = [
+    "Input", "InputNumber", "Checkbox", "CheckboxGroup", "Radio", "RadioGroup",
+    "Select", "Switch", "DatePicker", "TimePicker", "Upload", "Button",
+    "Slider", "Rate", "ColorPicker", "Flex", "Row", "Col", "Layout",
+    "Space", "Divider", "Card", "Typography", "Spin",
+    "CheckboxChangeEvent", "RadioChangeEvent"
+  ];
+
+  const standardIcons = [
+    "UploadOutlined", "InboxOutlined", "PlusOutlined"
+  ];
+
+  // Find all JSX tags in code, e.g. <Button or <Layout.Header or <Typography
+  const tagRegex = /<([A-Z][a-zA-Z0-9]*)(?:\.[a-zA-Z0-9]+)?\b/g;
+  const tagsUsed = new Set<string>();
+  let match;
+  while ((match = tagRegex.exec(processed)) !== null) {
+    tagsUsed.add(match[1]);
+  }
+
+  // Also scan if CheckboxChangeEvent or RadioChangeEvent is referenced in typescript types
+  standardAntdComponents.forEach(item => {
+    const escaped = item.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    const itemWordRegex = new RegExp(`\\b${escaped}\\b`);
+    if (itemWordRegex.test(processed)) {
+      tagsUsed.add(item);
+    }
+  });
+
+  // Now, check if there is an existing import { ... } from 'antd';
+  const antdImportRegex = /import\s*\{\s*([^}]+)\s*\}\s*from\s*['"]antd['"];?/g;
+  const existingAntdItems = new Set<string>();
+  const antdMatch = antdImportRegex.exec(processed);
+  if (antdMatch) {
+    antdMatch[1].split(",").map((x: string) => x.trim()).forEach(x => {
+      if (x) existingAntdItems.add(x);
+    });
+  }
+
+  const missingAntdItems = Array.from(tagsUsed).filter(tag => 
+    standardAntdComponents.includes(tag) && !existingAntdItems.has(tag)
+  );
+
+  if (missingAntdItems.length > 0) {
+    const allAntdItems = Array.from(new Set([...existingAntdItems, ...missingAntdItems])).sort();
+    if (antdMatch) {
+      // Replace existing import
+      processed = processed.replace(antdImportRegex, `import { ${allAntdItems.join(", ")} } from 'antd';`);
+    } else {
+      // Insert new import right after React import
+      processed = processed.replace(
+        /(import\s+React[^\n]*\n)/,
+        `$1import { ${missingAntdItems.sort().join(", ")} } from 'antd';\n`
+      );
+    }
+  }
+
+  // Same check for @ant-design/icons
+  const iconImportRegex = /import\s*\{\s*([^}]+)\s*\}\s*from\s*['"]@ant-design\/icons['"];?/g;
+  const existingIconItems = new Set<string>();
+  const iconMatch = iconImportRegex.exec(processed);
+  if (iconMatch) {
+    iconMatch[1].split(",").map((x: string) => x.trim()).forEach(x => {
+      if (x) existingIconItems.add(x);
+    });
+  }
+
+  // Scan code for icon names
+  const missingIconItems = standardIcons.filter(icon => 
+    new RegExp(`\\b${icon}\\b`).test(processed) && !existingIconItems.has(icon)
+  );
+
+  if (missingIconItems.length > 0) {
+    const allIconItems = Array.from(new Set([...existingIconItems, ...missingIconItems])).sort();
+    if (iconMatch) {
+      processed = processed.replace(iconImportRegex, `import { ${allIconItems.join(", ")} } from '@ant-design/icons';`);
+    } else {
+      const insertAnchor = processed.includes("from 'antd'") ? /(import[^\n]*from\s+['"]antd['"];?\n)/ : /(import\s+React[^\n]*\n)/;
+      processed = processed.replace(
+        insertAnchor,
+        `$1import { ${missingIconItems.sort().join(", ")} } from '@ant-design/icons';\n`
+      );
+    }
+  }
+
+  // Destructure Layout components if needed
+  if (processed.includes("import {") && processed.includes("Layout") && processed.includes("from 'antd'")) {
+    if (!processed.includes("const { Header, Sider, Content, Footer } = Layout;")) {
+      processed = processed.replace(
+        /(import[^\n]*from\s+['"]antd['"];?\n)/,
+        `$1const { Header, Sider, Content, Footer } = Layout;\n`
+      );
+    }
+  }
+
+  // Clean empty lines or duplicate imports if any
+  processed = processed.replace(/^\s*import\s*\{\s*\}\s*from\s*['"][^'"]+['"];?\n/gm, "");
+
+  return processed;
 };

@@ -1,8 +1,91 @@
 import { ASTNode, Page, StateVariable, BindingConfig, EventConfig } from "../types";
 import { useEditorStore } from "../store/useEditorStore";
 
+export const getDefaultBindingExpression = (node: ASTNode, binding: BindingConfig): string => {
+  const parts = binding.expression.split(".");
+  const safePath = "state." + parts.join("?.");
+
+  // Handle custom transforms
+  if (binding.transform) {
+    switch (binding.transform) {
+      case "!value":
+        return `!${safePath}`;
+      case "String":
+        return `${safePath} ?? ""`;
+      case "Number":
+        return `Number(${safePath} ?? 0)`;
+      case "Boolean":
+        return `Boolean(${safePath} ?? false)`;
+      case "JSON":
+        return `JSON.stringify(${safePath} ?? {})`;
+    }
+  }
+
+  // Deduce default fallback value based on component type and property name
+  const prop = binding.prop;
+  const type = node.type;
+
+  if (prop === "value" || prop === "checked") {
+    let fallback = '""';
+    switch (type) {
+      case "TextInput":
+      case "PasswordInput":
+      case "EmailInput":
+      case "Textarea":
+      case "SearchInput":
+      case "PhoneInput":
+      case "URLInput":
+      case "OTPInput":
+        fallback = '""';
+        break;
+      case "NumberInput":
+      case "Slider":
+      case "Rate":
+        fallback = "undefined";
+        break;
+      case "Checkbox":
+      case "Switch":
+        fallback = "false";
+        break;
+      case "DatePicker":
+      case "DateTimePicker":
+      case "RangePicker":
+      case "TimePicker":
+        fallback = "null";
+        break;
+      case "CheckboxGroup":
+      case "MultiSelect":
+        fallback = "[]";
+        break;
+      case "Select":
+        if (node.props && (node.props.mode === "multiple" || node.props.mode === "tags")) {
+          fallback = "[]";
+        } else {
+          fallback = "undefined";
+        }
+        break;
+      default:
+        fallback = '""';
+    }
+    return `${safePath} ?? ${fallback}`;
+  }
+
+  if (prop === "disabled" || prop === "hidden" || prop === "loading" || prop === "ghost" || prop === "danger" || prop === "block") {
+    return `${safePath} ?? false`;
+  }
+
+  if (prop === "text") {
+    return `${safePath} ?? ""`;
+  }
+
+  return `${safePath} ?? ""`;
+};
+
 // Helper to get safe javascript path for a binding, e.g. state.currentUser?.name
-export const getBindingExpression = (binding: BindingConfig): string => {
+export const getBindingExpression = (binding: BindingConfig, node?: ASTNode): string => {
+  if (node) {
+    return getDefaultBindingExpression(node, binding);
+  }
   const parts = binding.expression.split(".");
   const safePath = "state." + parts.join("?.");
 
@@ -11,18 +94,82 @@ export const getBindingExpression = (binding: BindingConfig): string => {
       case "!value":
         return `!${safePath}`;
       case "String":
-        return `String(${safePath})`;
+        return `${safePath} ?? ""`;
       case "Number":
-        return `Number(${safePath})`;
+        return `Number(${safePath} ?? 0)`;
       case "Boolean":
-        return `Boolean(${safePath})`;
+        return `Boolean(${safePath} ?? false)`;
       case "JSON":
-        return `JSON.stringify(${safePath})`;
+        return `JSON.stringify(${safePath} ?? {})`;
       default:
         return safePath;
     }
   }
-  return safePath;
+  return `${safePath} ?? ""`;
+};
+
+export const getEventParamDeclaration = (nodeType: string, eventName: string): { paramName: string; paramType: string; valExpression: string; rawParams?: string } => {
+  if (eventName === "onChange") {
+    switch (nodeType) {
+      case "TextInput":
+      case "PasswordInput":
+      case "EmailInput":
+      case "SearchInput":
+      case "PhoneInput":
+      case "URLInput":
+      case "OTPInput":
+        return { paramName: "e", paramType: "React.ChangeEvent<HTMLInputElement>", valExpression: "e.target.value" };
+      case "Textarea":
+        return { paramName: "e", paramType: "React.ChangeEvent<HTMLTextAreaElement>", valExpression: "e.target.value" };
+      case "NumberInput":
+        return { paramName: "value", paramType: "number | null", valExpression: "value" };
+      case "Checkbox":
+        return { paramName: "e", paramType: "CheckboxChangeEvent", valExpression: "e.target.checked" };
+      case "CheckboxGroup":
+        return { paramName: "checkedValues", paramType: "any[]", valExpression: "checkedValues" };
+      case "Radio":
+      case "RadioGroup":
+        return { paramName: "e", paramType: "RadioChangeEvent", valExpression: "e.target.value" };
+      case "Select":
+      case "MultiSelect":
+        return { paramName: "value", paramType: "any", valExpression: "value" };
+      case "Switch":
+        return { paramName: "checked", paramType: "boolean", valExpression: "checked" };
+      case "DatePicker":
+      case "DateTimePicker":
+        return { paramName: "dateString", paramType: "string | string[]", valExpression: "dateString", rawParams: "date: any, dateString: string | string[]" };
+      case "RangePicker":
+        return { paramName: "dateStrings", paramType: "[string, string]", valExpression: "dateStrings", rawParams: "dates: any, dateStrings: [string, string]" };
+      case "TimePicker":
+        return { paramName: "timeString", paramType: "string | string[]", valExpression: "timeString", rawParams: "time: any, timeString: string | string[]" };
+      case "Slider":
+        return { paramName: "value", paramType: "number | number[]", valExpression: "value" };
+      case "Rate":
+        return { paramName: "value", paramType: "number", valExpression: "value" };
+      case "ColorPicker":
+        return { paramName: "value", paramType: "any", valExpression: "value" };
+    }
+  }
+
+  if (eventName === "onClick") {
+    return { paramName: "e", paramType: "React.MouseEvent<HTMLElement>", valExpression: "e" };
+  }
+
+  return { paramName: "e", paramType: "any", valExpression: "e" };
+};
+
+export const isEventParamUsed = (eventConfig: EventConfig): boolean => {
+  if (!eventConfig.actions) return false;
+  return eventConfig.actions.some(
+    (action) => action.type === "setState" && action.params.valueSource === "event"
+  );
+};
+
+export const hasAwaitAction = (eventConfig: EventConfig): boolean => {
+  if (!eventConfig.actions) return false;
+  return eventConfig.actions.some(
+    (action) => action.type === "callApi" || action.type === "delay"
+  );
 };
 
 // Traverses AST to find all modal node IDs
